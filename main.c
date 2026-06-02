@@ -10,7 +10,7 @@ data received by the microphone straight to a WAV file.
 */
 
 #define MA_ENABLE_ONLY_SPECIFIC_BACKENDS
-#define MA_ENABLE_PULSEAUDIO
+#define MA_ENABLE_ALSA
 
 #include "./deps/miniaudio.h"
 #include <stdlib.h>
