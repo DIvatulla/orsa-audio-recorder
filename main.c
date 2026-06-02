@@ -27,4 +27,17 @@ int main(int argc, char** argv)
 
     snd_pcm_hw_params_malloc(&params); //allocates memory fow device parameters
     snd_pcm_hw_params_any(handle, params); //get device parameters
+    snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
+    snd_pcm_hw_params_set_format(handle, params, format);
+    snd_pcm_hw_params_set_channels(handle, params, channels);
+    snd_pcm_hw_params_set_rate_near(handle, params, &sample_rate, 0);
+    
+    err = snd_pcm_hw_params(handle, params);
+    
+    if (err < 0) {
+        fprintf(stderr, "Cannot set params: %s\n", snd_strerror(err));
+        return 1;
+    }
+
+    return 0;
 }
