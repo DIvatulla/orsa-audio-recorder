@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS = -g -Wall -Wextra 
-OBJMODULES = ./deps/miniaudio.o
+#OBJMODULES = ./deps/miniaudio.o
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $< -o $@
