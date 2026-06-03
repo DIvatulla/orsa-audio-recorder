@@ -6,4 +6,4 @@ CFLAGS = -g -Wall -Wextra
 	$(CC) $(CFLAGS) -c $< -o $@
 
 main: main.c $(OBJMODULES)
-	$(CC) $(CFLAGS) $^ -o $@ -lm
+	$(CC) $(CFLAGS) $^ -o $@ -lm -lasound
