@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 static char *device_name = "hw:1,0";			/* capture device */
-static unsigned int sample_rate = 16000;			/* stream rate */
+static unsigned int sample_rate = 44100;			/* stream rate */
 static unsigned int channels = 2;			/* count of channels */
 
 static snd_pcm_t *device; //audio connection
@@ -12,7 +12,7 @@ static snd_pcm_hw_params_t *params; //parameters
 int main(int argc, char** argv)
 {    
 	int err;
-    char *buf = calloc(0, 60 * (16000 * ((snd_pcm_format_width(SND_PCM_FORMAT_S16_LE) / 8) * 2)));
+    char *buf = calloc(60 * (16000 * ((snd_pcm_format_width(SND_PCM_FORMAT_S16_LE) / 8) * 2)), sizeof(char));
 	printf("buf size %ld\n", sizeof(buf));
 
     err = snd_pcm_open(&device, device_name, SND_PCM_STREAM_CAPTURE, 0); //open ALSA connection
@@ -33,10 +33,12 @@ int main(int argc, char** argv)
         fprintf(stderr, "Cannot set params: %s\n", snd_strerror(err));
         return 1;
     }
+	printf("%d\n", sample_rate);
 
 	printf("recording\n");
-	for (int i = 0; i < 10 ; i++) {
-		int ret = snd_pcm_readi(device, buf + (i * 2), 4096);  
+	char *frame_buf = calloc(16384, sizeof(char));
+	for (int i = 0; i < 50; i++) {
+		int ret = snd_pcm_readi(device, frame_buf, 4096);  
 		if (ret == -EPIPE){
 			snd_pcm_prepare(device);
 		}
@@ -44,9 +46,22 @@ int main(int argc, char** argv)
 			printf("Error\n");	
 			exit(1);
 		}
+		memcpy(buf+(i*16384), frame_buf, 16384);
+		memset(frame_buf, 0, 16384);
 	}
+	free(frame_buf);
 
+	
+	FILE *f = fopen("out.raw", "wb");
+    if (!f) { 
+		perror("fopen"); return 1; 
+	}
+    fwrite(buf, 1, 60 * (16000 * ((snd_pcm_format_width(SND_PCM_FORMAT_S16_LE) / 8) * 2)), f);
+    fclose(f);
+
+    printf("Saved\n");
+
+	snd_pcm_close(device);
+	free(buf);
     return 0;
 }
-
-
