@@ -1,0 +1,2 @@
+main buffer's size 181864
+frame buffer's size 16384
