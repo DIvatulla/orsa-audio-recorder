@@ -1,9 +1,16 @@
-CC=gcc
-CFLAGS = -g -Wall -Wextra 
-#OBJMODULES = ./deps/miniaudio.o
+CC = gcc
+CFLAGS = -g -Wall -Wextra -Iinclude
 
-%.o: %.c %.h
+SRC := $(wildcard src/*.c)
+OBJ := $(patsubst src/%.c,build/%.o,$(SRC))
+
+main: $(OBJ)
+	$(CC) $(OBJ) -o $@ -lncurses
+
+build/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-main: main.c $(OBJMODULES)
-	$(CC) $(CFLAGS) $^ -o $@ -lm -lasound -lpthread
+clean:
+	rm build/*.o main
+
+.PHONY:	clean

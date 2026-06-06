@@ -12,6 +12,8 @@ typedef enum {
 typedef struct {
 	char *buf;
 	int size;
+	int wi;	//write index
+	int ri; //read index
 } audio_buffer;
 
 typedef struct {
@@ -26,11 +28,12 @@ static snd_pcm_t *device; //audio connection
 static snd_pcm_hw_params_t *params; //parameters
 
 int open_mic(snd_pcm_t **d, snd_pcm_hw_params_t **p, audio_settings *s);
-int init_ab(audio_buffer *ab, audio_settings *s, audio_measure m, int mod);
-int free_ab(audio_buffer *ab);
 int usec_to_frames(audio_settings *s, int usec);
 int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr);
-
+int init_ab(audio_buffer *ab, audio_settings *s, audio_measure m, int mod);
+int free_ab(audio_buffer *ab);
+int push_ab(audio_buffer *ab);
+int pop_ab(audio_buffer *ab);
 
 int main(int argc, char** argv)
 {    
@@ -59,7 +62,7 @@ int main(int argc, char** argv)
 
 	/*RECORDING*/
 		main_buffer = calloc(1, sizeof(audio_buffer));
-		err = init_ab(main_buffer, settings, am_usecs, 1000000 * 5); //buffer 1 seccond
+		err = init_ab(main_buffer, settings, am_usecs, 1000000 * 10); //buffer 1 seccond
 		printf("main buffer's size %d\n", main_buffer->size);
 
 		frame_buffer = calloc(1, sizeof(audio_buffer));
@@ -84,6 +87,7 @@ int main(int argc, char** argv)
 
 	snd_pcm_close(device);
 	free_ab(main_buffer);
+	free(settings);
 
 	return 0;
 }
