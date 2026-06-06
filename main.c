@@ -50,6 +50,7 @@ int main(int argc, char** argv)
 	settings->channels = 2; //stereo
 	settings->pcm_format = SND_PCM_FORMAT_S16_LE;
 	settings->bytes_per_frame = (snd_pcm_format_width(settings->pcm_format) / 8) * (settings->channels);
+	snd_pcm_hw_params_free(params);
 
 	if ((err = open_mic(&device, &params, settings)) > 0) {
 		return err;
@@ -58,30 +59,31 @@ int main(int argc, char** argv)
 
 	/*RECORDING*/
 		main_buffer = calloc(1, sizeof(audio_buffer));
-		err = init_ab(main_buffer, settings, am_usecs, 1000000); //buffer 1 seccond
+		err = init_ab(main_buffer, settings, am_usecs, 1000000 * 5); //buffer 1 seccond
 		printf("main buffer's size %d\n", main_buffer->size);
 
 		frame_buffer = calloc(1, sizeof(audio_buffer));
 		err = init_ab(frame_buffer, settings, am_samples, 4096); //buffer 4096 samples
 		printf("frame buffer's size %d\n", frame_buffer->size);
 
-		recording(device, main_buffer, frame_buffer, 4096);
+		int file_size = recording(device, main_buffer, frame_buffer, 4096);
+		free_ab(frame_buffer);
 	/*RECORDING*/
 
-	/*
+	/*WRITING A FILE*/
 	FILE *f = fopen("out.raw", "wb");
     if (!f) { 
-		perror("fopen"); return 1; 
+		fprintf(stderr, "fopen");
+		return 1; 
 	}
-    fwrite(buf, 1, 60 * (16000 * ((snd_pcm_format_width(SND_PCM_FORMAT_S16_LE) / 8) * 2)), f);
+	printf("file size - %d\n", (unsigned int)file_size);
+    fwrite(main_buffer->buf, sizeof(char), file_size, f);
     fclose(f);
 
     printf("Saved\n");
 
 	snd_pcm_close(device);
-	free(buf);
-    return 0;
-	*/
+	free_ab(main_buffer);
 
 	return 0;
 }
@@ -103,15 +105,24 @@ int open_mic(snd_pcm_t **d, snd_pcm_hw_params_t **p, audio_settings *s)
 		fprintf(stderr, "Can't get available parameters for device %s\n", s->device_name);
 
 	}
-	err = snd_pcm_hw_params_set_channels(*d, *p, s->channels); //mono/stereo
+	err = snd_pcm_hw_params_set_access(*d, *p, SND_PCM_ACCESS_RW_INTERLEAVED); //get available parameters for device
 	if (err < 0) {
-		fprintf(stderr, "Can't get available parameters for device %s\n", s->device_name);
+		fprintf(stderr, "Can't set access %s\n", s->device_name);
+
+	}
+	err = snd_pcm_hw_params_set_format(*d, *p, s->pcm_format); //get available parameters for device
+	if (err < 0) {
+		fprintf(stderr, "Can't set pcm frame-byte-format %s\n", s->device_name);
+
 	}
 	err = snd_pcm_hw_params_set_rate_near(*d, *p, &s->sample_rate, 0); //setting the sample rate
 	if (err < 0) {
 		fprintf(stderr, "Can't set sample rate on %s to %d\n", s->device_name, s->sample_rate);
 	}
-	
+	err = snd_pcm_hw_params_set_channels(*d, *p, s->channels); //mono/stereo
+	if (err < 0) {
+		fprintf(stderr, "Can't get available parameters for device %s\n", s->device_name);
+	}
 	err = snd_pcm_hw_params(*d, *p);
     if (err < 0) {
         fprintf(stderr, "Cannot set params: %s\n", snd_strerror(err));
@@ -173,12 +184,17 @@ int usec_to_frames(audio_settings *s, int usec)
 int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr) //samples per reading
 {
 	int read = 0;
-	int to_read = m->size;
+	int to_read = m->size - f->size;
 	int ret;
+
+	if ((ret = snd_pcm_prepare(d)) < 0) {
+    	fprintf (stderr, "cannot prepare audio interface for use (%s)\n", snd_strerror (ret));
+		return -1;
+  	}
 
 	printf("Recording...\n");
 	do {
-		ret = snd_pcm_readi(d, (void*)f->buf, spr);
+		ret = snd_pcm_readi(d, f->buf, spr);
 		if (ret == -EPIPE){
 			snd_pcm_prepare(d);
 		}
@@ -190,8 +206,9 @@ int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr) //samples
 
 		memcpy((m->buf + read) - f->size, f->buf, f->size);
 		memset(f->buf, 0, f->size);
+		printf("how many bytes was read %d\n", read);
 
 	} while(read < to_read);
 
-	return ret;
+	return read;
 }
