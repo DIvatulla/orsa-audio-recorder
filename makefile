@@ -3,12 +3,13 @@ CFLAGS = -g -Wall -Wextra -Iinclude
 
 SRC := $(wildcard src/*.c)
 OBJ := $(patsubst src/%.c,build/%.o,$(SRC))
+LIBS := -lasound -lm -lpthread
 
 main: $(OBJ)
-	$(CC) $(OBJ) -o $@ -lncurses
+	$(CC) $(OBJ) -o $@ $(LIBS)
 
 build/%.o: src/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@ $(LIBS)
 
 clean:
 	rm build/*.o main
