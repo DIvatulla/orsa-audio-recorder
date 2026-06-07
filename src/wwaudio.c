@@ -145,5 +145,26 @@ int push_ab(audio_buffer *to, audio_buffer *from)
 		++to->wi;
 		++from->ri;
 	}
+
+	return 0;
 }
 
+double rms(audio_buffer *ab, audio_settings *s, int usec)
+{	
+	long int i, j;
+    long long sum = 0;
+	short *buf;
+	
+	j = usec_to_frames(s, usec);
+	if (j > ab->wi) {
+		return 0.0f;
+	}
+
+	buf = (short*)ab->buf;
+	for (i = ab->wi; i > j; i--){
+        sum += (long long)buf[i] * buf[i];
+		printf("help me - %ld, %d\n", i, buf[i]);
+	}
+
+    return sqrt((double)sum / (j / ab->channels / 2));
+}

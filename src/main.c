@@ -25,7 +25,7 @@ int main(int argc, char** argv)
 	}
 	
 	
-	main_buffer = init_ab(settings, am_usecs, 1000000 * 4);
+	main_buffer = init_ab(settings, am_usecs, 1000000 * 10);
 	if (main_buffer == NULL) {
 		return -1;
 	}
@@ -61,6 +61,7 @@ int main(int argc, char** argv)
 
 int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr) //samples per reading
 {
+	int count = 1;
 	int read = 0;
 	int to_read = m->size - f->size;
 	int ret;
@@ -70,6 +71,7 @@ int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr) //samples
 		return -1;
   	}
 
+	printf("buf start %ld\n", (long int)m->buf);
 	printf("Recording...\n");
 	do {
 		ret = snd_pcm_readi(d, f->buf, spr);
@@ -82,11 +84,10 @@ int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr) //samples
 		}
 		read += f->size;
 		printf("how many bytes was read %d\n", read);
-		
 		push_ab(m, f);
-		memset(f->buf, 0, f->size);
 
-		printf("how many bytes was read %d\n", read);
+		printf("rms %.6f\n", rms(m, 4096, 500000));
+		
 	} while(read < to_read);
 
 	return read;
