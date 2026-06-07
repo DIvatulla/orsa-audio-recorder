@@ -33,6 +33,5 @@ int open_mic(snd_pcm_t **d, audio_settings *s);
 audio_buffer *init_ab(audio_settings *s, audio_measure m, int mod);
 int free_ab(audio_buffer *ab);
 int push_ab(audio_buffer *to, audio_buffer *from);
-rms(audio_buffer *ab, audio_settings *s, int usec);
 
 #endif
