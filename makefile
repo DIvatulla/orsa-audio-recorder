@@ -11,7 +11,4 @@ main: $(OBJ)
 build/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@ $(LIBS)
 
-clean:
-	rm build/*.o main
-
 .PHONY:	clean

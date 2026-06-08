@@ -20,7 +20,7 @@ int main(int argc, char** argv)
 		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings");
 		return -1;
 	}
-	err = init_as(settings, "plughw:1", 44100, 2, SND_PCM_FORMAT_S16_LE);
+	err = init_as(settings, "hw:1", 44100, 2, SND_PCM_FORMAT_S16_LE);
 	if (err < 0){
 		return err;
 	}
@@ -41,7 +41,7 @@ int main(int argc, char** argv)
 		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings");
 	}
 
-	err = init_ab(main_buffer, settings, am_usecs, 1000000 * 10);
+	err = init_ab(main_buffer, settings, am_usecs, 1000000 * 30);
 	if (err < 0) {
 		fprintf(stderr, "Can't set settings for main buffer");
 		return err;
@@ -65,7 +65,9 @@ int main(int argc, char** argv)
 	}
 	printf("frame buffer's size %d\n", frame_buffer->size);
 
-	file_size = recording(rec_device, main_buffer, frame_buffer, 4096);
+	printf("bpr %d\n", main_buffer->settings->bytes_per_frame);
+	
+	err = recording(rec_device, main_buffer, frame_buffer, 4096);
 	free_ab(frame_buffer);
 
 	/*WRITING A FILE*/
@@ -74,8 +76,8 @@ int main(int argc, char** argv)
 		fprintf(stderr, "fopen");
 		return 1; 
 	}
-	printf("file size - %d\n", (unsigned int)file_size);
-    fwrite(main_buffer->buf, sizeof(char), file_size, f);
+	printf("m->wi %d\n", main_buffer->wi);
+    fwrite(main_buffer->buf, sizeof(char), main_buffer->wi, f);
     fclose(f);
 
     printf("Saved\n");
@@ -89,10 +91,8 @@ int main(int argc, char** argv)
 
 int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr) //samples per reading
 {
-	int count = 1;
-	int read = 0;
-	int to_read = m->size - f->size;
 	int ret;
+	int sample_counter;
 
 	if ((ret = snd_pcm_prepare(d)) < 0) {
     	fprintf (stderr, "cannot prepare audio interface for use (%s)\n", snd_strerror (ret));
@@ -101,6 +101,7 @@ int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr) //samples
 
 	printf("buf start %ld\n", (long int)m->buf);
 	printf("Recording...\n");
+	
 	do {
 		ret = snd_pcm_readi(d, f->buf, spr);
 		if (ret == -EPIPE){
@@ -110,13 +111,12 @@ int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr) //samples
 			fprintf(stderr, "Error while recording\n");	
 			return -1;
 		}
-		read += f->size;
-		printf("how many bytes was read %d\n", read);
 		push_ab(m, f);
+		printf("how many bytes was read %d\n", m->wi);
+		++sample_counter;
 
-		//printf("rms %.6f\n", rms(m, 4096, 500000));
-		
-	} while(read < to_read);
+		printf("rms %.6f\n", rms(m, spr));
+	} while(m->wi < ((m->size) - (f->size)));
 
-	return read;
+	return 0;
 }

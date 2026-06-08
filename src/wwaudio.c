@@ -140,7 +140,7 @@ int init_ab(audio_buffer *b, audio_settings *s, audio_measure mu, int mod)
 
 	b->buf = calloc(b->size, sizeof(char));
 	if (b->buf == NULL) {
-		fprintf(stderr, "Error while allocating memory for audio buffer");
+		fprintf(stderr, "Error while allocating memory for audio buffer\n");
 		return -1;
 	}
 
@@ -169,7 +169,7 @@ int free_as(audio_settings *s)
 int push_ab(audio_buffer *to, audio_buffer *from)
 {
 	if (from->size >= to->size) {
-		fprintf(stderr, "Size of source is more than destinantion's");
+		fprintf(stderr, "Size of source is more than destinantion's\n");
 		return -1;
 	}
 
@@ -188,22 +188,22 @@ int push_ab(audio_buffer *to, audio_buffer *from)
 	return 0;
 }
 
-double rms(audio_buffer *b, int usec)
+double rms(audio_buffer *b, int sa)
 {	
-	long int i, j;
+	int i;
+	short *cur;
     long long sum = 0;
-	short *buf;
 	
-	j = usec_to_frames(b->settings, usec) / 2;
-	if (j > b->wi) {
+	printf("bytes to read-%d, write index-%d\n", sa * b->settings->bytes_per_frame, b->wi);
+	if ((sa * b->settings->bytes_per_frame) > (unsigned int)b->wi) {
 		return -1.0f;
 	}
 
-	buf = (short*)b->buf;
-	for (i = b->wi; i > j; i--){
-        sum += (long long)buf[i] * buf[i];
-		printf("help me - %ld, %d\n", i, buf[i]);
+	cur = (short*)(b->buf + (b->wi - (sa * b->settings->bytes_per_frame)));
+	for (i = 0; i < sa; i++){
+		sum += (long long)(*cur) * (long long)(*cur);
+		++cur;
 	}
 
-    return sqrt((double)sum / (j / b->settings->channels / 2));
+    return sqrt((double)sum / sa);
 }
