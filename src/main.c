@@ -114,7 +114,7 @@ int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr) //samples
 		printf("how many bytes was read %d\n", read);
 		push_ab(m, f);
 
-		printf("rms %.6f\n", rms(m, 4096, 500000));
+		//printf("rms %.6f\n", rms(m, 4096, 500000));
 		
 	} while(read < to_read);
 

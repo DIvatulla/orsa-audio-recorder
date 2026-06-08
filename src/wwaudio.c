@@ -205,5 +205,5 @@ double rms(audio_buffer *b, int usec)
 		printf("help me - %ld, %d\n", i, buf[i]);
 	}
 
-    return sqrt((double)sum / (j / b->channels / 2));
+    return sqrt((double)sum / (j / b->settings->channels / 2));
 }
