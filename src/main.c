@@ -4,10 +4,6 @@
 #include <stdio.h>
 #include <math.h>
 
-snd_pcm_t *rec_device; //audio connection
-audio_settings *settings;
-
-
 int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr);
 
 int main(int argc, char** argv)
@@ -16,11 +12,8 @@ int main(int argc, char** argv)
 	int file_size;
 	audio_buffer *main_buffer; //main audio buffer
 	audio_buffer *frame_buffer; //frame audio buffer
-
-	err = open_mic(&rec_device, settings);
-	if (err > 0) {
-		return err;
-	}
+	snd_pcm_t *rec_device; //audio connection
+	audio_settings *settings;
 
 	settings = calloc(1, sizeof(audio_settings));
 	if (settings == NULL){
@@ -29,6 +22,11 @@ int main(int argc, char** argv)
 	}
 	err = init_as(settings, "plughw:1", 44100, 2, SND_PCM_FORMAT_S16_LE);
 	if (err < 0){
+		return err;
+	}
+
+	err = open_mic(&rec_device, settings);
+	if (err > 0) {
 		return err;
 	}
 
@@ -62,7 +60,7 @@ int main(int argc, char** argv)
 	}
 	err = init_ab(frame_buffer, settings, am_samples, 4096); //buffer 4096 samples
 	if (err < 0) {
-		fprint(stderr, "Can't set settings for frame buffer");
+		fprintf(stderr, "Can't set settings for frame buffer");
 		return err;
 	}
 	printf("frame buffer's size %d\n", frame_buffer->size);

@@ -13,6 +13,14 @@ typedef enum {
 } audio_measure;
 
 typedef struct {
+	char *device_name;
+	unsigned int sample_rate;
+	int channels;
+	snd_pcm_format_t pcm_format;
+	unsigned int bytes_per_frame;
+} audio_settings;
+
+typedef struct {
 	char *buf;
 	int size;
 	audio_settings *settings;
@@ -20,13 +28,6 @@ typedef struct {
 	int ri; //read index
 } audio_buffer;
 
-typedef struct {
-	char *device_name;
-	unsigned int sample_rate;
-	int channels;
-	snd_pcm_format_t pcm_format;
-	unsigned int bytes_per_frame;
-} audio_settings;
 
 int usec_to_frames(audio_settings *s, int usec);
 int init_as(audio_settings *s, char *dn, unsigned int sr, int c, snd_pcm_format_t pf);

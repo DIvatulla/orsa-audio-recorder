@@ -90,7 +90,7 @@ int open_mic(snd_pcm_t **d, audio_settings *s)
 
 int set_ab_as(audio_buffer *b, audio_settings *s)
 {
-	if (ab == NULL){
+	if (b == NULL){
 		return -1;
 	}
 	if (s == NULL){
@@ -133,7 +133,7 @@ int init_ab(audio_buffer *b, audio_settings *s, audio_measure mu, int mod)
 		return err;
 	}
 
-	err = set_ab_size(b, s, m, mod);
+	err = set_ab_size(b, s, mu, mod);
 	if (err < 0){
 		return err;
 	}
@@ -195,15 +195,15 @@ double rms(audio_buffer *b, int usec)
 	short *buf;
 	
 	j = usec_to_frames(b->settings, usec) / 2;
-	if (j > ab->wi) {
+	if (j > b->wi) {
 		return -1.0f;
 	}
 
 	buf = (short*)ab->buf;
-	for (i = ab->wi; i > j; i--){
+	for (i = b->wi; i > j; i--){
         sum += (long long)buf[i] * buf[i];
 		printf("help me - %ld, %d\n", i, buf[i]);
 	}
 
-    return sqrt((double)sum / (j / ab->channels / 2));
+    return sqrt((double)sum / (j / b->channels / 2));
 }
