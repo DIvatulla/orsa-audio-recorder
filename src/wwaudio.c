@@ -199,7 +199,7 @@ double rms(audio_buffer *b, int usec)
 		return -1.0f;
 	}
 
-	buf = (short*)ab->buf;
+	buf = (short*)b->buf;
 	for (i = b->wi; i > j; i--){
         sum += (long long)buf[i] * buf[i];
 		printf("help me - %ld, %d\n", i, buf[i]);
