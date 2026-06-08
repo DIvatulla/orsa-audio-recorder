@@ -5,35 +5,65 @@
 #include <math.h>
 
 static snd_pcm_t *rec_device; //audio connection
+static audio_settings *settings;
+
 
 int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr);
 
 int main(int argc, char** argv)
-{    
+{   
+	int err; 
 	int file_size;
-	audio_settings *settings;
 	audio_buffer *main_buffer; //main audio buffer
 	audio_buffer *frame_buffer; //frame audio buffer
 
-	settings = init_as("hw:1", 44100, 2, SND_PCM_FORMAT_S16_LE);
-	if (settings == NULL) {
-		return -1;
+	err = open_mic(&rec_device, settings);
+	if (err > 0) {
+		return err;
 	}
 
-	if (open_mic(&rec_device, settings) > 0) {
+	audio_settings = calloc(1, sizeof(audio_settings));
+	if (audio_settings == NULL){
+		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings");
 		return -1;
 	}
-	
-	
-	main_buffer = init_ab(settings, am_usecs, 1000000 * 10);
+	err = init_as(audio_settings, "plughw:1", 44100, 2, SND_PCM_FORMAT_S16_LE);
+	if (err < 0){
+		return err;
+	}
+
+
+	main_buffer = calloc(1, sizeof(audio_buffer));
 	if (main_buffer == NULL) {
-		return -1;
+		fprintf(stderr, "Couldn't allocate memory for main audio buffer");
+		return err;
+	}
+	main_buffer->settings = calloc(1, sizeof(audio_settings));
+	if (main_buffer->settings == NULL){
+		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings");
+	}
+
+	err = init_ab(main_buffer, settings, am_usecs, 1000000 * 10);
+	if (err < 0) {
+		fprintf(stderr, "Can't set settings for main buffer");
+		return err;
 	}
 	printf("main buffer's size %d\n", main_buffer->size);
 
-	frame_buffer = init_ab(settings, am_samples, 4096); //buffer 4096 samples
+	frame_buffer = calloc(1, sizeof(audio_buffer));
 	if (frame_buffer == NULL) {
+		fprintf(stderr, "Couldn't allocate memory for frame audio buffer");
 		return -1;
+	}
+	frame_buffer->settings = calloc(1, sizeof(audio_settings));
+	if (frame_buffer->settings == NULL) {
+		fprintf(stderr, "Couldn't allocate memory for frame audio buffer's settings");
+		return -1;
+	}
+	err = init_ab(frame_buffer, settings, am_samples, 4096); //buffer 4096 samples
+	if (err < 0) {
+		fprint(stderr, "Can't set settings for frame buffer");
+		return err;
 	}
 	printf("frame buffer's size %d\n", frame_buffer->size);
 

@@ -15,6 +15,7 @@ typedef enum {
 typedef struct {
 	char *buf;
 	int size;
+	audio_settings *settings;
 	int wi;	//write index
 	int ri; //read index
 } audio_buffer;
@@ -28,11 +29,12 @@ typedef struct {
 } audio_settings;
 
 int usec_to_frames(audio_settings *s, int usec);
-audio_settings *init_as(char *dn, unsigned int sr, int c, snd_pcm_format_t pf);
-int open_mic(snd_pcm_t **d, audio_settings *s);
-audio_buffer *init_ab(audio_settings *s, audio_measure m, int mod);
+int init_as(audio_settings *s, char *dn, unsigned int sr, int c, snd_pcm_format_t pf);
+int free_as(audio_settings *s);
+int init_ab(audio_buffer *b, audio_settings *s, audio_measure mu, int mod);
 int free_ab(audio_buffer *ab);
 int push_ab(audio_buffer *to, audio_buffer *from);
-rms(audio_buffer *ab, audio_settings *s, int usec);
+int open_mic(snd_pcm_t **d, audio_settings *s);
+double rms(audio_buffer *b, int usec);
 
 #endif

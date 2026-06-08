@@ -2,6 +2,7 @@
 #include <alsa/asoundlib.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 
 int usec_to_frames(audio_settings *s, int usec)
@@ -16,21 +17,30 @@ int usec_to_frames(audio_settings *s, int usec)
 	}
 }
 
-audio_settings *init_as(char *dn, unsigned int sr, int c, snd_pcm_format_t pf)
+//add check for available sample rate
+int init_as(audio_settings *s, char *dn, unsigned int sr, int c, snd_pcm_format_t pf)
 {
-	audio_settings *s = calloc(1, sizeof(audio_settings));
-	if (s == NULL) {
-		fprintf(stderr, "Couldn't allocate memory for audio settings");
-		return NULL;
+	char *tmp;
+
+	if (strlen(dn) < 3){
+		fprintf(stderr, "Device name is too short\n");
+		return -1;
 	}
 
-	s->device_name = dn;
+	tmp = calloc(strlen(dn), sizeof(char));
+	if (tmp == NULL){
+		fprintf(stderr, "Couldn't allocate memory for device name");	
+		return -1;
+	}
+
+	strcpy(tmp, dn);
+	s->device_name = tmp;
 	s->sample_rate = sr;
 	s->channels = c;
 	s->pcm_format = pf;
 	s->bytes_per_frame = (snd_pcm_format_width(s->pcm_format) / 8) * (s->channels);
 
-	return s;
+	return 0;
 }
 
 int open_mic(snd_pcm_t **d, audio_settings *s)
@@ -78,51 +88,80 @@ int open_mic(snd_pcm_t **d, audio_settings *s)
 	return err;
 }
 
-audio_buffer *init_ab(audio_settings *s, audio_measure m, int mod)
+int set_ab_as(audio_buffer *b, audio_settings *s)
 {
-	audio_buffer *ab;
-
-	ab = calloc(1, sizeof(audio_buffer));
-	if (ab == NULL) {
-		fprintf(stderr, "Couldn't alloc memory for audio buffer");
-		return ab;
+	if (ab == NULL){
+		return -1;
 	}
+	if (s == NULL){
+		return -1;
+	}
+	memcpy(b->settings, s, sizeof(audio_settings));
+	return 0;
+}
 
-	switch (m){
+int set_ab_size(audio_buffer *b, audio_settings *s, audio_measure mu, int mod) 
+{
+	switch (mu){
 		case am_usecs:
-			ab->size = s->bytes_per_frame * usec_to_frames(s, mod);
-			if (ab->size < 0){
+			b->size = s->bytes_per_frame * usec_to_frames(s, mod);
+			if (b->size < 0){
 				fprintf(stderr, "The frame length is too small\n");
-				return NULL;
+				return -1;
 			}
 			break;
 		case am_samples:
-			ab->size = s->bytes_per_frame * mod;
+			b->size = s->bytes_per_frame * mod;
 			break;
 		case am_frames:
-			ab->size = s->bytes_per_frame * mod;
+			b->size = s->bytes_per_frame * mod;
 			break;
 		default:
 			fprintf(stderr, "Unknown specifier for audio buffer memory allocation\n");
-			return NULL;
+			return -1;
 	}
 
-	ab->buf = calloc(ab->size, sizeof(char));
-	if (ab->buf == NULL) {
-		fprintf(stderr, "Error while allocating memory for audio buffer");
-		return NULL;
-	}
-
-	ab->wi = 0;
-	ab->ri = 0;
-
-	return ab;
+	return 0;
 }
 
-int free_ab(audio_buffer *ab)
+int init_ab(audio_buffer *b, audio_settings *s, audio_measure mu, int mod)
 {
-	free(ab->buf);
-	free(ab);
+	int err;
+
+	err = set_ab_as(b, s);
+	if (err < 0){
+		return err;
+	}
+
+	err = set_ab_size(b, s, m, mod);
+	if (err < 0){
+		return err;
+	}
+
+	b->buf = calloc(b->size, sizeof(char));
+	if (b->buf == NULL) {
+		fprintf(stderr, "Error while allocating memory for audio buffer");
+		return -1;
+	}
+
+	b->wi = 0;
+	b->ri = 0;
+
+	return 0;
+}
+
+int free_ab(audio_buffer *b)
+{
+	free(b->buf);
+	free(b);
+
+	return 0;
+}
+
+int free_as(audio_settings *s)
+{
+	free(s->device_name);
+	free(s);
 
 	return 0;
 }
@@ -149,15 +188,15 @@ int push_ab(audio_buffer *to, audio_buffer *from)
 	return 0;
 }
 
-double rms(audio_buffer *ab, audio_settings *s, int usec)
+double rms(audio_buffer *b, int usec)
 {	
 	long int i, j;
     long long sum = 0;
 	short *buf;
 	
-	j = usec_to_frames(s, usec);
+	j = usec_to_frames(b->settings, usec) / 2;
 	if (j > ab->wi) {
-		return 0.0f;
+		return -1.0f;
 	}
 
 	buf = (short*)ab->buf;
