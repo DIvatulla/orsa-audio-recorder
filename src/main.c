@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include <math.h>
 
-static snd_pcm_t *rec_device; //audio connection
-static audio_settings *settings;
+snd_pcm_t *rec_device; //audio connection
+audio_settings *settings;
 
 
 int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr);
@@ -22,12 +22,12 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-	audio_settings = calloc(1, sizeof(audio_settings));
-	if (audio_settings == NULL){
+	settings = calloc(1, sizeof(audio_settings));
+	if (settings == NULL){
 		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings");
 		return -1;
 	}
-	err = init_as(audio_settings, "plughw:1", 44100, 2, SND_PCM_FORMAT_S16_LE);
+	err = init_as(settings, "plughw:1", 44100, 2, SND_PCM_FORMAT_S16_LE);
 	if (err < 0){
 		return err;
 	}
