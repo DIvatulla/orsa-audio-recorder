@@ -50,6 +50,36 @@ int init_as(audio_settings *s, char *dn, unsigned int sr, int c, snd_pcm_format_
 	return 0;
 }
 
+int copy_as(audio_settings *dst, audio_settings *src)
+{
+	switch((int)(dst == NULL) || (int)((src == NULL) << 1)){
+		case 0:
+			break;
+		case 1:
+			fprintf(stderr, "Destination pointer is null\n");
+			return -1;
+			break;
+		case 2:
+			fprintf(stderr, "Source pointer is null\n");
+			return -1;
+			break;
+		case 3:
+			fprintf(stderr, "Destination and source ports are null\n");
+			return -1;
+			break;
+	}
+
+	memcpy(dst, src, sizeof(audio_settings));
+	dst->device_name = calloc(strlen(src->device_name)+1, sizeof(char));
+	if (dst->device_name == NULL) {
+		fprintf(stderr, "Couldn't allocate memory for device's name\n");
+		return -1;
+	}
+	strcpy(dst->device_name, src->device_name);
+
+	return 0;
+}
+
 void free_as(audio_settings *s)
 {
 	free(s->device_name);
@@ -65,7 +95,7 @@ int init_ab(audio_buffer *b, audio_settings *s, audio_measure mu, int mod)
 		return -1;
 	}
 	b->settings = (audio_settings*)calloc(1, sizeof(audio_settings));
-	init_as(b->settings, s->device_name, s->sample_rate, s->channels, s->pcm_format);
+	copy_as(b->settings, s);
 	
 	err = set_ab_size(b, s, mu, mod);
 	if (err < 0){

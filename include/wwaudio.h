@@ -38,6 +38,7 @@ int usec_per_sample(audio_settings *s);
 int samples_to_usec(audio_settings *s, int frames);
 
 int init_as(audio_settings *s, char *dn, unsigned int sr, int c, snd_pcm_format_t pf);
+int copy_as(audio_settings *dst, audio_settings *src);
 void free_as(audio_settings *s);
 
 int init_ab(audio_buffer *b, audio_settings *s, audio_measure mu, int mod);

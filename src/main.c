@@ -7,7 +7,7 @@
 audio_device *recdev = NULL; //recording device 
 audio_settings *settings = NULL; //audio parameters
 audio_buffer *main_buffer = NULL; //main audio buffer
-spr = 1024;
+int spr = 1024;
 
 //int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr);
 int setup_main_settings();
@@ -35,7 +35,7 @@ int main(int argc, char** argv)
 	}
 
 	open_mic(recdev);
-	listen(recdev);
+	//listen(1000000 * 30);
 	//err = recording(rec_device, main_buffer, frame_buffer, 4096);
 
 	free_ad(recdev);
@@ -84,7 +84,10 @@ int setup_recdev()
 	recdev = (audio_device*)calloc(1, sizeof(audio_device));
 	recdev->pcm_device = NULL;
 	recdev->settings = (audio_settings*)calloc(1, sizeof(audio_settings));
-	memcpy(recdev->settings, settings, sizeof(audio_settings));
+	
+	if (copy_as(recdev->settings, settings) < 0){
+		return -1;
+	}
 
 	return 0;
 }
@@ -112,7 +115,7 @@ audio_buffer *make_rb()
 	return frame_buffer;
 }
 
-int listen(int duration, int timeout)
+int listen(int duration)
 {
 	int ret;
 	audio_buffer *rb = make_rb();
@@ -121,7 +124,7 @@ int listen(int duration, int timeout)
 		return -1;
 	}
 
-	for (int i = 0;i < 100; i++){
+	for (int i = 0; i < 100; i++){
 		ret = snd_pcm_readi(recdev->pcm_device, rb->buf, spr);
 		if (ret == -EPIPE){
 			snd_pcm_prepare(recdev->pcm_device);
@@ -180,7 +183,6 @@ void write_file(char *filename)
 	FILE *f = fopen(filename, "wb");
     if (!f) { 
 		fprintf(stderr, "fopen");
-		return -1;; 
 	}
 	printf("m->wi %d\n", main_buffer->wi);
     fwrite(main_buffer->buf, sizeof(char), main_buffer->wi, f);
