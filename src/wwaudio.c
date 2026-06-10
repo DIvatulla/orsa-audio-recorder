@@ -146,15 +146,12 @@ int push_ab(audio_buffer *to, audio_buffer *from)
 	}
 
 	from->ri = 0;
-
-	while (from->ri != from->size) {
+	for (from->ri = 0; from->ri != from->size; ++to->wi, ++from->ri) {
 		if (to->wi > to->size){
 			to->wi = 0;
 		}
 
 		to->buf[to->wi] = from->buf[from->ri];
-		++to->wi;
-		++from->ri;
 	}
 
 	return 0;
@@ -260,7 +257,8 @@ double rms(audio_buffer *b, int sa)
     long long sum = 0;
 	
 	printf("bytes to read-%d, write index-%d\n", sa * b->settings->bytes_per_sample, b->wi);
-	if ((sa * b->settings->bytes_per_sample) > (unsigned int)b->wi) {
+	if ((sa * b->settings->bytes_per_sample) > b->wi) {
+		printf("sa * b->settings->bytes_per_sample %d\n", sa * b->settings->bytes_per_sample);
 		return -1.0f;
 	}
 
