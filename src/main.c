@@ -14,6 +14,7 @@ int setup_main_settings();
 int setup_main_buffer(int sec);
 int setup_recdev();
 audio_buffer *make_rb();
+int listen(int duration);
 
 int main(int argc, char** argv)
 {   
@@ -35,7 +36,7 @@ int main(int argc, char** argv)
 	}
 
 	open_mic(recdev);
-	//listen(1000000 * 30);
+	listen(1000000 * 30);
 	//err = recording(rec_device, main_buffer, frame_buffer, 4096);
 
 	free_ad(recdev);
@@ -99,11 +100,6 @@ audio_buffer *make_rb()
 	audio_buffer *frame_buffer = (audio_buffer*)calloc(1, sizeof(audio_buffer));
 	if (frame_buffer == NULL) {
 		fprintf(stderr, "Couldn't allocate memory for frame audio buffer");
-		return NULL;
-	}
-	frame_buffer->settings = (audio_settings*)calloc(1, sizeof(audio_settings));
-	if (frame_buffer->settings == NULL) {
-		fprintf(stderr, "Couldn't allocate memory for frame audio buffer's settings");
 		return NULL;
 	}
 	err = init_ab(frame_buffer, settings, am_samples, 4096); //buffer 4096 samples
