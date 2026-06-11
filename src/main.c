@@ -13,7 +13,6 @@ int spr = 4096;
 
 double bottomline_volume;
 
-//int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr);
 int setup_main_settings();
 int setup_main_buffer();
 int setup_recdev();
@@ -21,7 +20,6 @@ audio_buffer *make_rb();
 int recording();
 double measure_volume();
 
-//int listen(int duration);
 
 int main(int argc, char** argv)
 {   
@@ -43,8 +41,11 @@ int main(int argc, char** argv)
 	}
 
 	open_mic(recdev);
-	//bottomline_volume = measure_volume();
-	err = measure_volume();
+	bottomline_volume = measure_volume();
+	if (bottomline_volume < 0) {
+		fprintf("RMS calculation is -1.0");
+		return 1;
+	}
 
 	free_ad(recdev);
 	free_ab(main_buffer);
@@ -170,6 +171,12 @@ int recording()
 
 		rb->wi = spr * rb->settings->bytes_per_sample;
 		r = rms(rb, spr);
+		if (r <= bottomline_volume){
+			printf("silence\n");
+		}
+		else{
+			printf("sound\n");
+		}
 
 		push_ab(main_buffer, rb);
 		printf("main_buffer->wi = %d\n", main_buffer->wi);
