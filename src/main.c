@@ -124,9 +124,9 @@ double measure_volume()
 	int ret;
 	int i = 0;
 	int rms_arr_size = main_buffer->samples;
-	double sum = 0;
-	double *rms_arr = calloc(rms_arr_size, sizeof(double));
+	double min, max, cur;
 	audio_buffer *rb = make_rb();
+	min = max = 0.0f;
 
 	recording();
 
@@ -137,19 +137,14 @@ double measure_volume()
 	main_buffer->ri = 0;
 
 	while (main_buffer->ri <= (rms_arr_size * main_buffer->settings->bytes_per_sample)) {
-		rms_arr[i] = rms(main_buffer, spr);
+		cur = rms(main_buffer, spr);
+		min = cur < min ? cur : min;
+		max = cur > max ? cur : max;
 		printf("read index = %d, rms = %lf\n", main_buffer->ri, rms_arr[i]);
 		main_buffer->ri += (spr * main_buffer->settings->bytes_per_sample);
-		++i;
 	}
 
-	for (i = 0; i < rms_arr_size; i++) {
-		sum += rms_arr[i];
-	}
-
-	free(rms_arr);
-
-	return sum / rms_arr_size;
+	return (min + max) / 2.0f;
 }
 
 int recording()
