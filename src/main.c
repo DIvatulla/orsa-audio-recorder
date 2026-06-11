@@ -139,7 +139,11 @@ double measure_volume()
 		printf("read index = %d, rms = %lf\n", main_buffer->ri, rms(main_buffer, spr));
 		++i;
 		main_buffer->ri += (spr * main_buffer->settings->bytes_per_sample);
-	}	
+	}
+
+	for (i = 0; i < rms_arr_size; i++) {
+		sum += rms_arr[i];
+	}
 
 	free(rms_arr);
 
