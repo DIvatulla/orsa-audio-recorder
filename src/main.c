@@ -43,7 +43,7 @@ int main(int argc, char** argv)
 	}
 
 	open_mic(recdev);
-	bottomline_volume = measure_volume();
+	//bottomline_volume = measure_volume();
 	err = recording();
 
 	free_ad(recdev);
@@ -62,7 +62,7 @@ int setup_main_settings()
 		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings");
 		return -1;
 	}
-	err = init_as(settings, "hw:1", 44100, 2, SND_PCM_FORMAT_S16_LE);
+	err = init_as(settings, "hw:1", 44100, 1, SND_PCM_FORMAT_S16_LE);
 	if (err < 0){
 		return err;
 	}
@@ -127,32 +127,13 @@ double measure_volume()
 	double *rms_arr = calloc(rms_arr_size, sizeof(double));
 	audio_buffer *rb = make_rb();
 
-	do {
-		ret = snd_pcm_readi(recdev->pcm_device, rb->buf, spr);
-		if (ret == -EPIPE){
-			snd_pcm_prepare(recdev->pcm_device);
-		}
-		else if (ret < 0){
-			fprintf(stderr, "Error while recording\n");	
-			break;
-		}
+	recording();
 
-		rb->wi = rb->settings->bytes_per_sample * spr;
-		rms_arr[i] = rms(rb, spr);
-		printf("rms = %f\n", rms_arr[i]);
-		++i;
-		main_buffer->wi += spr * main_buffer->settings->bytes_per_sample;
-
-		printf("main_buffer->wi %d\n", main_buffer->wi);
-	} while(main_buffer->wi <= (main_buffer->size - rb->size));
-
-	free_ab(rb);
 	main_buffer->wi = 0;
 	
 	for (i = 0; i < rms_arr_size; i++){
-		printf("rms_arr[i] = %f\n", rms_arr[i]);
-		sum += rms_arr[i];
-		printf("sum = %f\n", sum);
+		main_buffer->ri += i * spr;
+		printf("rms = %f\n", rms(main_buffer, spr));
 	}
 
 	free(rms_arr);
@@ -179,6 +160,7 @@ int recording()
 
 		rb->wi = spr * rb->settings->bytes_per_sample;
 		r = rms(rb, spr);
+
 		if (r < bottomline_volume) {
 			printf("Silence, rms = %f\n", r);
 		}
