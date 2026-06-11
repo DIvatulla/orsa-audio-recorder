@@ -18,7 +18,8 @@ int setup_main_buffer();
 int setup_recdev();
 audio_buffer *make_rb();
 int recording();
-double measure_volume();
+int measure_volume();
+double calculate_volume();
 
 
 int main(int argc, char** argv)
@@ -41,7 +42,7 @@ int main(int argc, char** argv)
 	}
 
 	open_mic(recdev);
-	bottomline_volume = measure_volume();
+	bottomline_volume = calculate_volume();
 	if (bottomline_volume < 0) {
 		fprintf(stderr, "RMS calculation is -1.0");
 		return 1;
@@ -119,7 +120,7 @@ audio_buffer *make_rb()
 	return frame_buffer;
 }
 
-double measure_volume()
+double calculate_volume()
 {
 	int ret;
 	int i = 0;
@@ -144,7 +145,33 @@ double measure_volume()
 		main_buffer->ri += (spr * main_buffer->settings->bytes_per_sample);
 	}
 
-	return (min + max) / 2.0f;
+	return ((min + max) / 2.0f) - 10.0f;
+}
+
+int measure_volume()
+{
+	int ret;
+	double r;
+	audio_buffer *rb = make_rb();
+	ret = 0;
+
+	do {
+		ret = snd_pcm_readi(recdev->pcm_device, rb->buf, spr);
+		if (ret == -EPIPE){
+			snd_pcm_prepare(recdev->pcm_device);
+		}
+		else if (ret < 0){
+			fprintf(stderr, "Error while recording\n");	
+			break;
+		}
+
+		rb->wi = spr * rb->settings->bytes_per_sample;
+
+		push_ab(main_buffer, rb);
+	} while(main_buffer->wi <= (main_buffer->size - rb->size));
+
+	free_ab(rb);
+	return ret;
 }
 
 int recording()
