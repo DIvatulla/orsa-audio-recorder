@@ -129,12 +129,12 @@ double measure_volume()
 
 	recording();
 
-	main_buffer->wi = 0;
-	
-	for (i = 0; i < rms_arr_size; i++){
-		main_buffer->ri += i * spr;
-		printf("rms = %f\n", rms(main_buffer, spr));
-	}
+	main_buffer->ri = 0;
+
+	while (main_buffer->ri <= (rms_arr_size * main_buffer->settings->bytes_per_sample)) {
+		printf("read index = %d, rms = %lf\n", main_buffer->ri, rms(main_buffer, spr));
+		main_buffer->ri += i * main_buffer->settings->bytes_per_sample;
+	}	
 
 	free(rms_arr);
 
@@ -161,13 +161,6 @@ int recording()
 		rb->wi = spr * rb->settings->bytes_per_sample;
 		r = rms(rb, spr);
 
-		if (r < bottomline_volume) {
-			printf("Silence, rms = %f\n", r);
-		}
-		else{
-			printf("Not silence, rms = %f\n", r);
-		}
-
 		push_ab(main_buffer, rb);
 		printf("main_buffer->wi = %d\n", main_buffer->wi);
 	} while(main_buffer->wi <= (main_buffer->size - rb->size));
@@ -176,7 +169,7 @@ int recording()
 	return ret;
 }
 
-/*
+
 void write_file(char *filename)
 {
 	FILE *f = fopen(filename, "wb");
@@ -189,4 +182,3 @@ void write_file(char *filename)
 
     printf("Saved\n");
 }
-*/
