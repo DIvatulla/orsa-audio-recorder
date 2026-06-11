@@ -44,7 +44,7 @@ int main(int argc, char** argv)
 
 	open_mic(recdev);
 	//bottomline_volume = measure_volume();
-	err = recording();
+	err = measure_volume();
 
 	free_ad(recdev);
 	free_ab(main_buffer);
@@ -62,7 +62,7 @@ int setup_main_settings()
 		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings");
 		return -1;
 	}
-	err = init_as(settings, "hw:1", 44100, 1, SND_PCM_FORMAT_S16_LE);
+	err = init_as(settings, "hw:0", 44100, 1, SND_PCM_FORMAT_S16_LE);
 	if (err < 0){
 		return err;
 	}
@@ -122,18 +122,23 @@ double measure_volume()
 {
 	int ret;
 	int i = 0;
-	int rms_arr_size = main_buffer->size / spr;
+	int rms_arr_size = main_buffer->samples;
 	double sum = 0;
 	double *rms_arr = calloc(rms_arr_size, sizeof(double));
 	audio_buffer *rb = make_rb();
 
 	recording();
 
+	printf("rms_arr_size = %d\n", rms_arr_size);
+    printf("bpr - %d\n", main_buffer->settings->bytes_per_sample);
+    printf("upper border of loop %ld\n", rms_arr_size * main_buffer->settings->bytes_per_sample);
+
 	main_buffer->ri = 0;
 
 	while (main_buffer->ri <= (rms_arr_size * main_buffer->settings->bytes_per_sample)) {
 		printf("read index = %d, rms = %lf\n", main_buffer->ri, rms(main_buffer, spr));
-		main_buffer->ri += i * main_buffer->settings->bytes_per_sample;
+		++i;
+		main_buffer->ri += (spr * main_buffer->settings->bytes_per_sample);
 	}	
 
 	free(rms_arr);

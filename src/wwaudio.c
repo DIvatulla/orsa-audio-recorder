@@ -101,6 +101,7 @@ int init_ab(audio_buffer *b, audio_settings *s, audio_measure mu, int mod)
 	if (err < 0){
 		return err;
 	}
+	b->samples = (b->size / b->settings->bytes_per_sample);
 
 	b->buf = (char*)calloc(b->size, sizeof(char));
 	if (b->buf == NULL) {

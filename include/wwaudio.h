@@ -23,6 +23,7 @@ typedef struct {
 typedef struct {
 	char *buf;
 	int size;
+	int samples;
 	audio_settings *settings;
 	int wi;	//write index
 	int ri; //read index
