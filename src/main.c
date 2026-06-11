@@ -142,8 +142,6 @@ double measure_volume()
 		++i;
 	}
 
-	exit(0);
-
 	for (i = 0; i < rms_arr_size; i++) {
 		sum += rms_arr[i];
 	}

@@ -254,16 +254,19 @@ int open_mic(audio_device *d)
 double rms(audio_buffer *b, int sa)
 {	
 	int i;
-	short *cur;
+	short *cur = (short*)b->buf;
     long long sum = 0;
 	
 	printf("bytes to read-%d, read index-%d\n", sa * b->settings->bytes_per_sample, b->ri);
-	if ((sa * b->settings->bytes_per_sample) > b->ri) {
+	if ((sa * b->settings->bytes_per_sample) > b->wi) {
 		printf("sa * b->settings->bytes_per_sample %d\n", sa * b->settings->bytes_per_sample);
 		return -1.0f;
 	}
 
-	cur = (short*)(b->buf + (b->ri - (sa * b->settings->bytes_per_sample)));
+	if (b->ri > 0) {
+		cur = (short*)(b->buf + (b->ri - (sa * b->settings->bytes_per_sample)));
+	}
+	
 	for (i = 0; i < sa; i++){
 		sum += (long long)(*cur) * (long long)(*cur);
 		++cur;
