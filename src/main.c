@@ -43,7 +43,7 @@ int main(int argc, char** argv)
 	open_mic(recdev);
 	bottomline_volume = measure_volume();
 	if (bottomline_volume < 0) {
-		fprintf("RMS calculation is -1.0");
+		fprintf(stderr, "RMS calculation is -1.0");
 		return 1;
 	}
 
@@ -140,7 +140,7 @@ double measure_volume()
 		cur = rms(main_buffer, spr);
 		min = cur < min ? cur : min;
 		max = cur > max ? cur : max;
-		printf("read index = %d, rms = %lf\n", main_buffer->ri, rms_arr[i]);
+		printf("read index = %d, rms = %lf\n", main_buffer->ri, cur);
 		main_buffer->ri += (spr * main_buffer->settings->bytes_per_sample);
 	}
 
