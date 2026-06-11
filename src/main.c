@@ -136,10 +136,13 @@ double measure_volume()
 	main_buffer->ri = 0;
 
 	while (main_buffer->ri <= (rms_arr_size * main_buffer->settings->bytes_per_sample)) {
-		printf("read index = %d, rms = %lf\n", main_buffer->ri, rms(main_buffer, spr));
-		++i;
+		rms_arr[i] = rms(main_buffer, spr);
+		printf("read index = %d, rms = %lf\n", main_buffer->ri, rms_arr[i]);
 		main_buffer->ri += (spr * main_buffer->settings->bytes_per_sample);
+		++i;
 	}
+
+	exit(0);
 
 	for (i = 0; i < rms_arr_size; i++) {
 		sum += rms_arr[i];
