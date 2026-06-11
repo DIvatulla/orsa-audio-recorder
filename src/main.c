@@ -4,90 +4,191 @@
 #include <stdio.h>
 #include <math.h>
 
-static snd_pcm_t *rec_device; //audio connection
+audio_device *recdev = NULL; //recording device 
+audio_settings *settings = NULL; //audio parameters
+audio_buffer *main_buffer = NULL; //main audio buffer
 
-int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr);
+int mb_dur = 10;
+int spr = 4096;
+
+double bottomline_volume;
+
+//int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr);
+int setup_main_settings();
+int setup_main_buffer();
+int setup_recdev();
+audio_buffer *make_rb();
+int recording();
+double measure_volume();
+
+//int listen(int duration);
 
 int main(int argc, char** argv)
-{    
-	int file_size;
-	audio_settings *settings;
-	audio_buffer *main_buffer; //main audio buffer
-	audio_buffer *frame_buffer; //frame audio buffer
+{   
+	int err;
 
-	settings = init_as("hw:1", 44100, 2, SND_PCM_FORMAT_S16_LE);
-	if (settings == NULL) {
-		return -1;
+	err = setup_main_settings();
+	if (err < 0){
+		return err;
+	}	
+
+	err = setup_main_buffer();
+	if (err < 0){
+		return err;
 	}
 
-	if (open_mic(&rec_device, settings) > 0) {
-		return -1;
+	err = setup_recdev();
+	if (err < 0) {
+		return err;
 	}
-	
-	
-	main_buffer = init_ab(settings, am_usecs, 1000000 * 4);
-	if (main_buffer == NULL) {
-		return -1;
-	}
-	printf("main buffer's size %d\n", main_buffer->size);
 
-	frame_buffer = init_ab(settings, am_samples, 4096); //buffer 4096 samples
-	if (frame_buffer == NULL) {
-		return -1;
-	}
-	printf("frame buffer's size %d\n", frame_buffer->size);
+	open_mic(recdev);
+	//bottomline_volume = measure_volume();
+	err = measure_volume();
 
-	file_size = recording(rec_device, main_buffer, frame_buffer, 4096);
-	free_ab(frame_buffer);
-
-	/*WRITING A FILE*/
-	FILE *f = fopen("out.raw", "wb");
-    if (!f) { 
-		fprintf(stderr, "fopen");
-		return 1; 
-	}
-	printf("file size - %d\n", (unsigned int)file_size);
-    fwrite(main_buffer->buf, sizeof(char), file_size, f);
-    fclose(f);
-
-    printf("Saved\n");
-
-	snd_pcm_close(rec_device);
+	free_ad(recdev);
 	free_ab(main_buffer);
-	free(settings);
+	free_as(settings);
 
 	return 0;
 }
 
-int recording(snd_pcm_t *d, audio_buffer *m, audio_buffer *f, int spr) //samples per reading
+int setup_main_settings()
 {
-	int read = 0;
-	int to_read = m->size - f->size;
-	int ret;
+	int err;
 
-	if ((ret = snd_pcm_prepare(d)) < 0) {
-    	fprintf (stderr, "cannot prepare audio interface for use (%s)\n", snd_strerror (ret));
+	settings = (audio_settings*)calloc(1, sizeof(audio_settings));
+	if (settings == NULL){
+		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings");
 		return -1;
-  	}
+	}
+	err = init_as(settings, "hw:0", 44100, 1, SND_PCM_FORMAT_S16_LE);
+	if (err < 0){
+		return err;
+	}
+}
 
-	printf("Recording...\n");
+int setup_main_buffer()
+{
+	int err;
+
+	main_buffer = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	if (main_buffer == NULL) {
+		fprintf(stderr, "Couldn't allocate memory for main audio buffer");
+		return err;
+	}
+
+	err = init_ab(main_buffer, settings, am_usecs, 1000000 * mb_dur);
+	if (err < 0) {
+		fprintf(stderr, "Can't set settings for main buffer");
+		return err;
+	}
+	printf("main buffer's size %d\n", main_buffer->size);
+	printf("bpr %d\n", main_buffer->settings->bytes_per_sample);
+}
+
+int setup_recdev()
+{
+	recdev = (audio_device*)calloc(1, sizeof(audio_device));
+	recdev->pcm_device = NULL;
+	recdev->settings = (audio_settings*)calloc(1, sizeof(audio_settings));
+	
+	if (copy_as(recdev->settings, settings) < 0){
+		return -1;
+	}
+
+	return 0;
+}
+
+audio_buffer *make_rb()
+{
+	int err;
+
+	audio_buffer *frame_buffer = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	if (frame_buffer == NULL) {
+		fprintf(stderr, "Couldn't allocate memory for frame audio buffer");
+		return NULL;
+	}
+	err = init_ab(frame_buffer, settings, am_samples, spr); //buffer 4096 samples
+	if (err < 0) {
+		fprintf(stderr, "Can't set settings for frame buffer");
+		return NULL;
+	}
+
+	return frame_buffer;
+}
+
+double measure_volume()
+{
+	int ret;
+	int i = 0;
+	int rms_arr_size = main_buffer->samples;
+	double sum = 0;
+	double *rms_arr = calloc(rms_arr_size, sizeof(double));
+	audio_buffer *rb = make_rb();
+
+	recording();
+
+	printf("rms_arr_size = %d\n", rms_arr_size);
+    printf("bpr - %d\n", main_buffer->settings->bytes_per_sample);
+    printf("upper border of loop %ld\n", rms_arr_size * main_buffer->settings->bytes_per_sample);
+
+	main_buffer->ri = 0;
+
+	while (main_buffer->ri <= (rms_arr_size * main_buffer->settings->bytes_per_sample)) {
+		rms_arr[i] = rms(main_buffer, spr);
+		printf("read index = %d, rms = %lf\n", main_buffer->ri, rms_arr[i]);
+		main_buffer->ri += (spr * main_buffer->settings->bytes_per_sample);
+		++i;
+	}
+
+	for (i = 0; i < rms_arr_size; i++) {
+		sum += rms_arr[i];
+	}
+
+	free(rms_arr);
+
+	return sum / rms_arr_size;
+}
+
+int recording()
+{
+	int ret;
+	double r;
+	audio_buffer *rb = make_rb();
+	ret = 0;
+
 	do {
-		ret = snd_pcm_readi(d, f->buf, spr);
+		ret = snd_pcm_readi(recdev->pcm_device, rb->buf, spr);
 		if (ret == -EPIPE){
-			snd_pcm_prepare(d);
+			snd_pcm_prepare(recdev->pcm_device);
 		}
 		else if (ret < 0){
 			fprintf(stderr, "Error while recording\n");	
-			return -1;
+			break;
 		}
-		read += f->size;
-		printf("how many bytes was read %d\n", read);
-		
-		push_ab(m, f);
-		memset(f->buf, 0, f->size);
 
-		printf("how many bytes was read %d\n", read);
-	} while(read < to_read);
+		rb->wi = spr * rb->settings->bytes_per_sample;
+		r = rms(rb, spr);
 
-	return read;
+		push_ab(main_buffer, rb);
+		printf("main_buffer->wi = %d\n", main_buffer->wi);
+	} while(main_buffer->wi <= (main_buffer->size - rb->size));
+
+	free_ab(rb);
+	return ret;
+}
+
+
+void write_file(char *filename)
+{
+	FILE *f = fopen(filename, "wb");
+    if (!f) { 
+		fprintf(stderr, "fopen");
+	}
+	printf("m->wi %d\n", main_buffer->wi);
+    fwrite(main_buffer->buf, sizeof(char), main_buffer->wi, f);
+    fclose(f);
+
+    printf("Saved\n");
 }

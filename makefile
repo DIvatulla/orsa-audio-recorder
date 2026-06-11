@@ -6,12 +6,9 @@ OBJ := $(patsubst src/%.c,build/%.o,$(SRC))
 LIBS := -lasound -lm -lpthread
 
 main: $(OBJ)
-	$(CC) $(OBJ) -o $@ $(LIBS)
+	$(CC) $(CFLAGS) $(OBJ) -o $@ $(LIBS)
 
 build/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@ $(LIBS)
-
-clean:
-	rm build/*.o main
 
 .PHONY:	clean

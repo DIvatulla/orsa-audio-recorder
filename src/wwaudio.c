@@ -2,11 +2,17 @@
 #include <alsa/asoundlib.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 
-int usec_to_frames(audio_settings *s, int usec)
+int usec_per_sample(audio_settings *s)
 {
-	int uspf = (int)floorf(((1000000.0f) / (float)s->sample_rate)); //microseconds per frame
+	return (int)floorf(((1000000.0f) / (float)s->sample_rate));
+}
+
+int usec_to_samples(audio_settings *s, int usec)
+{
+	int uspf = usec_per_sample(s);
 
 	if (usec < uspf) {
 		return -1;
@@ -16,113 +22,119 @@ int usec_to_frames(audio_settings *s, int usec)
 	}
 }
 
-audio_settings *init_as(char *dn, unsigned int sr, int c, snd_pcm_format_t pf)
+int samples_to_usec(audio_settings *s, int samples)
 {
-	audio_settings *s = calloc(1, sizeof(audio_settings));
-	if (s == NULL) {
-		fprintf(stderr, "Couldn't allocate memory for audio settings");
-		return NULL;
+	return samples * usec_per_sample(s);
+}
+
+//add check for available sample rate
+int init_as(audio_settings *s, char *dn, unsigned int sr, int c, snd_pcm_format_t pf)
+{
+	if (strlen(dn) < 3){
+		fprintf(stderr, "Device name is too short\n");
+		return -1;
 	}
 
-	s->device_name = dn;
+	s->device_name = (char*)calloc(strlen(dn)+1, sizeof(char));
+	if (s->device_name == NULL){
+		fprintf(stderr, "Couldn't allocate memory for device name");	
+		return -1;
+	}	
+	
+	strcpy(s->device_name, dn);
 	s->sample_rate = sr;
 	s->channels = c;
 	s->pcm_format = pf;
-	s->bytes_per_frame = (snd_pcm_format_width(s->pcm_format) / 8) * (s->channels);
+	s->bytes_per_sample = (snd_pcm_format_width(s->pcm_format) / 8) * (s->channels);
 
-	return s;
+	return 0;
 }
 
-int open_mic(snd_pcm_t **d, audio_settings *s)
+int copy_as(audio_settings *dst, audio_settings *src)
 {
-	snd_pcm_hw_params_t *p; 
+	switch((int)(dst == NULL) || (int)((src == NULL) << 1)){
+		case 0:
+			break;
+		case 1:
+			fprintf(stderr, "Destination pointer is null\n");
+			return -1;
+			break;
+		case 2:
+			fprintf(stderr, "Source pointer is null\n");
+			return -1;
+			break;
+		case 3:
+			fprintf(stderr, "Destination and source ports are null\n");
+			return -1;
+			break;
+	}
+
+	memcpy(dst, src, sizeof(audio_settings));
+	dst->device_name = calloc(strlen(src->device_name)+1, sizeof(char));
+	if (dst->device_name == NULL) {
+		fprintf(stderr, "Couldn't allocate memory for device's name\n");
+		return -1;
+	}
+	strcpy(dst->device_name, src->device_name);
+
+	return 0;
+}
+
+void free_as(audio_settings *s)
+{
+	free(s->device_name);
+	free(s);
+}
+
+int init_ab(audio_buffer *b, audio_settings *s, audio_measure mu, int mod)
+{
 	int err;
 
-	err = snd_pcm_open(d, s->device_name, SND_PCM_STREAM_CAPTURE, 0); //open ALSA connection
-    if (err < 0) {
-        fprintf(stderr, "Can't open device %s\n", s->device_name);
-    }
-	err = snd_pcm_hw_params_malloc(&p); //allocate memory for possible parameters of device
-	if (err < 0) {
-		fprintf(stderr, "Error while allocating memory for device's parameters %s\n", s->device_name);
+	if (s == NULL){
+		fprintf(stderr, "Audio settings pointer is null");
+		return -1;
 	}
-	err = snd_pcm_hw_params_any(*d, p); //get available parameters for device
-	if (err < 0) {
-		fprintf(stderr, "Can't get available parameters for device %s\n", s->device_name);
+	b->settings = (audio_settings*)calloc(1, sizeof(audio_settings));
+	copy_as(b->settings, s);
+	
+	err = set_ab_size(b, s, mu, mod);
+	if (err < 0){
+		return err;
+	}
+	b->samples = (b->size / b->settings->bytes_per_sample);
 
+	b->buf = (char*)calloc(b->size, sizeof(char));
+	if (b->buf == NULL) {
+		fprintf(stderr, "Error while allocating memory for audio buffer\n");
+		return -1;
 	}
-	err = snd_pcm_hw_params_set_access(*d, p, SND_PCM_ACCESS_RW_INTERLEAVED); //get available parameters for device
-	if (err < 0) {
-		fprintf(stderr, "Can't set access %s\n", s->device_name);
 
-	}
-	err = snd_pcm_hw_params_set_format(*d, p, s->pcm_format); //get available parameters for device
-	if (err < 0) {
-		fprintf(stderr, "Can't set pcm frame-byte-format %s\n", s->device_name);
+	b->wi = 0;
+	b->ri = 0;
 
-	}
-	err = snd_pcm_hw_params_set_rate_near(*d, p, &s->sample_rate, 0); //setting the sample rate
-	if (err < 0) {
-		fprintf(stderr, "Can't set sample rate on %s to %d\n", s->device_name, s->sample_rate);
-	}
-	err = snd_pcm_hw_params_set_channels(*d, p, s->channels); //mono/stereo
-	if (err < 0) {
-		fprintf(stderr, "Can't get available parameters for device %s\n", s->device_name);
-	}
-	err = snd_pcm_hw_params(*d, p);
-    if (err < 0) {
-        fprintf(stderr, "Cannot set params: %s\n", snd_strerror(err));
-    }
-
-	snd_pcm_hw_params_free(p);
-	return err;
+	return 0;
 }
 
-audio_buffer *init_ab(audio_settings *s, audio_measure m, int mod)
+int set_ab_size(audio_buffer *b, audio_settings *s, audio_measure mu, int mod) 
 {
-	audio_buffer *ab;
-
-	ab = calloc(1, sizeof(audio_buffer));
-	if (ab == NULL) {
-		fprintf(stderr, "Couldn't alloc memory for audio buffer");
-		return ab;
-	}
-
-	switch (m){
+	switch (mu){
 		case am_usecs:
-			ab->size = s->bytes_per_frame * usec_to_frames(s, mod);
-			if (ab->size < 0){
+			b->size = s->bytes_per_sample * usec_to_samples(s, mod);
+			if (b->size < 0){
 				fprintf(stderr, "The frame length is too small\n");
-				return NULL;
+				return -1;
 			}
 			break;
 		case am_samples:
-			ab->size = s->bytes_per_frame * mod;
+			b->size = s->bytes_per_sample * mod;
 			break;
 		case am_frames:
-			ab->size = s->bytes_per_frame * mod;
+			b->size = s->bytes_per_sample;
 			break;
 		default:
 			fprintf(stderr, "Unknown specifier for audio buffer memory allocation\n");
-			return NULL;
+			return -1;
 	}
-
-	ab->buf = calloc(ab->size, sizeof(char));
-	if (ab->buf == NULL) {
-		fprintf(stderr, "Error while allocating memory for audio buffer");
-		return NULL;
-	}
-
-	ab->wi = 0;
-	ab->ri = 0;
-
-	return ab;
-}
-
-int free_ab(audio_buffer *ab)
-{
-	free(ab->buf);
-	free(ab);
 
 	return 0;
 }
@@ -130,20 +142,135 @@ int free_ab(audio_buffer *ab)
 int push_ab(audio_buffer *to, audio_buffer *from)
 {
 	if (from->size >= to->size) {
-		fprintf(stderr, "Size of source is more than destinantion's");
+		fprintf(stderr, "Size of source is more than destinantion's\n");
 		return -1;
 	}
 
 	from->ri = 0;
-
-	while (from->ri != from->size) {
+	for (from->ri = 0; from->ri != from->size; ++to->wi, ++from->ri) {
 		if (to->wi > to->size){
 			to->wi = 0;
 		}
 
 		to->buf[to->wi] = from->buf[from->ri];
-		++to->wi;
-		++from->ri;
 	}
+
+	return 0;
 }
 
+void free_ab(audio_buffer *b)
+{
+	free_as(b->settings);
+	free(b->buf);
+	free(b);
+}
+
+int init_ad(audio_device *d, audio_settings *s)
+{
+	;
+}
+
+void free_ad(audio_device *d)
+{
+	snd_pcm_close(d->pcm_device);
+	free_as(d->settings);
+	free(d);
+}
+
+int open_mic(audio_device *d)
+{
+	snd_pcm_hw_params_t *p;
+	unsigned int old_rate = 0;
+	int err = 0;
+
+	err = snd_pcm_open(&(d->pcm_device), d->settings->device_name, SND_PCM_STREAM_CAPTURE, 0);
+	if (err < 0) {
+		fprintf(stderr, "Can't open device %s\n", d->settings->device_name);
+		return err;
+	}
+
+	err = snd_pcm_hw_params_malloc(&p);
+	if (err < 0){
+		fprintf(stderr,
+			"Error while allocating memory for device's parameters %s\n",
+			d->settings->device_name);
+		return err;
+	}
+
+	err = snd_pcm_hw_params_any(d->pcm_device, p);
+	if (err < 0){
+		fprintf(stderr,
+			"Can't get available parameters for device %s\n",
+			d->settings->device_name);
+		return err;
+	}
+
+	err = snd_pcm_hw_params_set_access(d->pcm_device, p, SND_PCM_ACCESS_RW_INTERLEAVED);
+	if (err < 0){
+		fprintf(stderr, "Can't set access %s\n", d->settings->device_name);
+		return err;
+	}
+
+	err = snd_pcm_hw_params_set_format(d->pcm_device, p, d->settings->pcm_format);
+	if (err < 0){
+		fprintf(stderr, 
+			"Can't set pcm-frame's byte representation %s\n", 
+			d->settings->device_name);
+		return err;
+	}
+
+	old_rate = d->settings->sample_rate;
+	err = snd_pcm_hw_params_set_rate_near(d->pcm_device, p, &(d->settings->sample_rate), 0);
+	if (err < 0){
+		fprintf(stderr, 
+			"Can't set sample rate on %s to %d\n",
+			d->settings->device_name, d->settings->sample_rate);
+		return err;
+	}
+	if (old_rate != d->settings->sample_rate){
+		fprintf(stderr, 
+			"Can't set sample rate on %s to %d, only %d is available\n",
+			d->settings->device_name, old_rate, d->settings->sample_rate);
+		return -1;
+	}
+
+	err = snd_pcm_hw_params_set_channels(d->pcm_device, p, d->settings->channels); //mono/stereo
+	if (err < 0) {
+		fprintf(stderr, "Can't set channels on %s\n", d->settings->device_name);
+		return err;
+	}
+
+	err = snd_pcm_hw_params(d->pcm_device, p);
+	if (err < 0){
+		fprintf(stderr, "Cannot set params: %s\n", snd_strerror(err));
+	}
+
+	snd_pcm_hw_params_free(p);
+	return 0;
+}
+
+
+
+double rms(audio_buffer *b, int sa)
+{	
+	int i;
+	short *cur = (short*)b->buf;
+    long long sum = 0;
+	
+	printf("bytes to read-%d, read index-%d\n", sa * b->settings->bytes_per_sample, b->ri);
+	if ((sa * b->settings->bytes_per_sample) > b->wi) {
+		printf("sa * b->settings->bytes_per_sample %d\n", sa * b->settings->bytes_per_sample);
+		return -1.0f;
+	}
+
+	if (b->ri > 0) {
+		cur = (short*)(b->buf + (b->ri - (sa * b->settings->bytes_per_sample)));
+	}
+	
+	for (i = 0; i < sa; i++){
+		sum += (long long)(*cur) * (long long)(*cur);
+		++cur;
+	}
+
+    return sqrt((double)sum / sa);
+}
