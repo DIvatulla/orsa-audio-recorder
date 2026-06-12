@@ -129,7 +129,7 @@ int record(audio_buffer *mb, audio_buffer *rb)
 		mb->wi += rb->wi;
 
 		push_ab(main_buffer, rb);
-	} while(main_buffer->wi <= (main_buffer->size - rb->size));
+	} while(mb->wi <= (mb->size - rb->size));
 
 	return 0;
 }
