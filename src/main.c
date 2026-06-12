@@ -126,6 +126,7 @@ int record(audio_buffer *mb, audio_buffer *rb)
 		}
 
 		rb->wi = spr * rb->settings->bytes_per_sample;
+		mb->wi += rb->wi;
 
 		push_ab(main_buffer, rb);
 	} while(main_buffer->wi <= (main_buffer->size - rb->size));
@@ -160,13 +161,13 @@ double measure_volume()
 	free_ab(mb);
 	free_ab(rb);
 
-	return (double)(sum / (mb->samples / spr)) + 20.0f;
+	return (double)(sum / (mb->samples / spr)) + 10.0f;
 }
 
 int listen()
 {
 	int ret;
-	
+
 	audio_buffer *rb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
 	
 	init_ab(rb, settings, am_samples, spr);
