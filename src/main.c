@@ -8,7 +8,7 @@ audio_device *recdev = NULL; //recording device
 audio_settings *settings = NULL; //audio parameters
 audio_buffer *main_buffer = NULL; //main audio buffer
 
-int mb_dur = 10;
+int mb_dur = 60;
 int spr = 4096;
 
 double bottomline_volume;
@@ -47,6 +47,8 @@ int main(int argc, char** argv)
 		fprintf(stderr, "RMS calculation is -1.0");
 		return 1;
 	}
+	printf("bottom line volume %f\n", bottomline_volume);
+	recording();
 
 	free_ad(recdev);
 	free_ab(main_buffer);
@@ -64,7 +66,7 @@ int setup_main_settings()
 		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings");
 		return -1;
 	}
-	err = init_as(settings, "hw:0", 44100, 1, SND_PCM_FORMAT_S16_LE);
+	err = init_as(settings, "hw:1", 44100, 1, SND_PCM_FORMAT_S16_LE);
 	if (err < 0){
 		return err;
 	}
@@ -124,28 +126,23 @@ double calculate_volume()
 {
 	int ret;
 	int i = 0;
-	int rms_arr_size = main_buffer->samples;
-	double min, max, cur;
+	long double sum = 0.0f;
 	audio_buffer *rb = make_rb();
-	min = max = 0.0f;
 
-	recording();
-
-	printf("rms_arr_size = %d\n", rms_arr_size);
-    printf("bpr - %d\n", main_buffer->settings->bytes_per_sample);
-    printf("upper border of loop %ld\n", rms_arr_size * main_buffer->settings->bytes_per_sample);
+	printf("Measuring volume\n");
+	measure_volume();
 
 	main_buffer->ri = 0;
 
-	while (main_buffer->ri <= (rms_arr_size * main_buffer->settings->bytes_per_sample)) {
-		cur = rms(main_buffer, spr);
-		min = cur < min ? cur : min;
-		max = cur > max ? cur : max;
-		printf("read index = %d, rms = %lf\n", main_buffer->ri, cur);
+	printf("main_buffer->wi - %d\n", main_buffer->wi);	
+	while (main_buffer->ri <= main_buffer->size) {
+		printf("rms - %f\n", rms(main_buffer, spr));	
+		sum = sum + rms(main_buffer, spr);
+		printf("sum - %Lf\n", sum);	
 		main_buffer->ri += (spr * main_buffer->settings->bytes_per_sample);
 	}
 
-	return ((min + max) / 2.0f) - 10.0f;
+	return (double)(sum / (main_buffer->samples / spr)) + 20.0f;
 }
 
 int measure_volume()
@@ -193,6 +190,7 @@ int recording()
 
 		rb->wi = spr * rb->settings->bytes_per_sample;
 		r = rms(rb, spr);
+		printf("rms - %lf\n", r);
 		if (r <= bottomline_volume){
 			printf("silence\n");
 		}

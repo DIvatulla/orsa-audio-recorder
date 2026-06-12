@@ -255,7 +255,7 @@ double rms(audio_buffer *b, int sa)
 {	
 	int i;
 	short *cur = (short*)b->buf;
-    long long sum = 0;
+    	long long sum = 0;
 	
 	printf("bytes to read-%d, read index-%d\n", sa * b->settings->bytes_per_sample, b->ri);
 	if ((sa * b->settings->bytes_per_sample) > b->wi) {
@@ -272,5 +272,5 @@ double rms(audio_buffer *b, int sa)
 		++cur;
 	}
 
-    return sqrt((double)sum / sa);
+    return (sqrt((double)sum / sa));
 }
