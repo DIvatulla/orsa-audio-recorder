@@ -155,13 +155,14 @@ double measure_volume()
 		printf("rms - %f\n", rms(mb, spr));	
 		sum = sum + rms(mb, spr);
 		printf("sum - %Lf\n", sum);	
-		mb->ri += (spr * mb->settings->bytes_per_sample);
+		mb->ri += rb->size;
+		++i;
 	}
 
 	free_ab(mb);
 	free_ab(rb);
 
-	return (double)(sum / (mb->samples / spr)) + 10.0f;
+	return (double)(sum / i) + 10.0f;
 }
 
 int listen()
