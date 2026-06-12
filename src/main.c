@@ -16,11 +16,9 @@ double bottomline_volume;
 int setup_main_settings();
 int setup_main_buffer();
 int setup_recdev();
-audio_buffer *make_rb();
-int recording();
-int measure_volume();
-double calculate_volume();
-
+int record(audio_buffer *mb, audio_buffer *rb);
+double measure_volume();
+int listen();
 
 int main(int argc, char** argv)
 {   
@@ -41,14 +39,19 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-	open_mic(recdev);
-	bottomline_volume = calculate_volume();
+	err = open_mic(recdev);
+	if (err < 0) {
+		return err;
+	}
+
+	bottomline_volume = measure_volume();
 	if (bottomline_volume < 0) {
 		fprintf(stderr, "RMS calculation is -1.0");
 		return 1;
 	}
 	printf("bottom line volume %f\n", bottomline_volume);
-	recording();
+	
+	listen();
 
 	free_ad(recdev);
 	free_ab(main_buffer);
@@ -104,82 +107,73 @@ int setup_recdev()
 	return 0;
 }
 
-audio_buffer *make_rb()
+int record(audio_buffer *mb, audio_buffer *rb)
+{
+	int ret;
+
+	if (rb->samples > mb->samples){
+		return -1;
+	}
+
+	do {
+		ret = snd_pcm_readi(recdev->pcm_device, rb->buf, rb->samples);
+		if (ret == -EPIPE){
+			snd_pcm_prepare(recdev->pcm_device);
+		}
+		else if (ret < 0){
+			fprintf(stderr, "Error while recording\n");	
+			break;
+		}
+
+		rb->wi = spr * rb->settings->bytes_per_sample;
+
+		push_ab(main_buffer, rb);
+	} while(main_buffer->wi <= (main_buffer->size - rb->size));
+
+	return 0;
+}
+
+double measure_volume()
 {
 	int err;
-
-	audio_buffer *frame_buffer = (audio_buffer*)calloc(1, sizeof(audio_buffer));
-	if (frame_buffer == NULL) {
-		fprintf(stderr, "Couldn't allocate memory for frame audio buffer");
-		return NULL;
-	}
-	err = init_ab(frame_buffer, settings, am_samples, spr); //buffer 4096 samples
-	if (err < 0) {
-		fprintf(stderr, "Can't set settings for frame buffer");
-		return NULL;
-	}
-
-	return frame_buffer;
-}
-
-double calculate_volume()
-{
-	int ret;
 	int i = 0;
 	long double sum = 0.0f;
-	audio_buffer *rb = make_rb();
+	audio_buffer *mb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	audio_buffer *rb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	
+	init_ab(mb, settings, am_samples, 4096);
+	init_ab(rb, settings, am_usecs, 10 * 1000000);
 
 	printf("Measuring volume\n");
-	measure_volume();
+	record(mb, rb);
 
-	main_buffer->ri = 0;
+	mb->ri = 0;
 
-	printf("main_buffer->wi - %d\n", main_buffer->wi);	
-	while (main_buffer->ri <= main_buffer->size) {
-		printf("rms - %f\n", rms(main_buffer, spr));	
-		sum = sum + rms(main_buffer, spr);
+	printf("mb->wi - %d\n", mb->wi);	
+	while (mb->ri <= mb->size) {
+		printf("rms - %f\n", rms(mb, spr));	
+		sum = sum + rms(mb, spr);
 		printf("sum - %Lf\n", sum);	
-		main_buffer->ri += (spr * main_buffer->settings->bytes_per_sample);
+		mb->ri += (spr * mb->settings->bytes_per_sample);
 	}
 
-	return (double)(sum / (main_buffer->samples / spr)) + 20.0f;
-}
-
-int measure_volume()
-{
-	int ret;
-	double r;
-	audio_buffer *rb = make_rb();
-	ret = 0;
-
-	do {
-		ret = snd_pcm_readi(recdev->pcm_device, rb->buf, spr);
-		if (ret == -EPIPE){
-			snd_pcm_prepare(recdev->pcm_device);
-		}
-		else if (ret < 0){
-			fprintf(stderr, "Error while recording\n");	
-			break;
-		}
-
-		rb->wi = spr * rb->settings->bytes_per_sample;
-
-		push_ab(main_buffer, rb);
-	} while(main_buffer->wi <= (main_buffer->size - rb->size));
-
+	free_ab(mb);
 	free_ab(rb);
-	return ret;
+
+	return (double)(sum / (mb->samples / spr)) + 20.0f;
 }
 
-int recording()
+int listen()
 {
 	int ret;
-	double r;
-	audio_buffer *rb = make_rb();
-	ret = 0;
+	
+	audio_buffer *rb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	
+	init_ab(rb, settings, am_samples, spr);
 
-	do {
-		ret = snd_pcm_readi(recdev->pcm_device, rb->buf, spr);
+	for (;;) {
+		rb->wi = 0;
+		ret = snd_pcm_readi(recdev->pcm_device, rb->buf, rb->samples);
 		if (ret == -EPIPE){
 			snd_pcm_prepare(recdev->pcm_device);
 		}
@@ -187,25 +181,16 @@ int recording()
 			fprintf(stderr, "Error while recording\n");	
 			break;
 		}
-
 		rb->wi = spr * rb->settings->bytes_per_sample;
-		r = rms(rb, spr);
-		printf("rms - %lf\n", r);
-		if (r <= bottomline_volume){
+
+		if (rms(rb, spr) <= bottomline_volume){
 			printf("silence\n");
 		}
-		else{
+		else {
 			printf("sound\n");
 		}
-
-		push_ab(main_buffer, rb);
-		printf("main_buffer->wi = %d\n", main_buffer->wi);
-	} while(main_buffer->wi <= (main_buffer->size - rb->size));
-
-	free_ab(rb);
-	return ret;
+	}
 }
-
 
 void write_file(char *filename)
 {
