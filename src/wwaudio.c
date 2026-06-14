@@ -252,7 +252,7 @@ int open_mic(audio_device *d)
 double rms(audio_buffer *b, int sa)
 {	
 	int i;
-	int end = sa * b->settings->bytes_per_sample;
+	int end = (b->ri + (sa * b->settings->bytes_per_sample));
     long long int sum = 0;
 	short *sample_ptr;
 
@@ -262,6 +262,7 @@ double rms(audio_buffer *b, int sa)
 	}
 	if (end > b->wi){
 		fprintf(stderr, "Trying to read more samples that were wrote\n");
+		printf("b->size - %d, b->wi - %d, end - %d\n", b->size, b->wi, end);
 		return -1.0f;
 	}
 	

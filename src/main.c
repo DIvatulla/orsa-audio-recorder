@@ -50,9 +50,16 @@ int main(int argc, char** argv)
 		return 1;
 	}
 	printf("bottom line volume %f\n", bottomline_volume);
-	
 
+	listen();
+	/*
+	audio_buffer *rb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	init_ab(rb, settings, am_samples, 4096);
+
+	record(main_buffer, rb);
+	write_file("./out.raw");
 	//listen();
+	*/
 
 	free_ad(recdev);
 	free_ab(main_buffer);
@@ -147,12 +154,10 @@ double measure_volume()
 	printf("Measuring volume\n");
 	record(mb, rb);
 
-	mb->ri = 0;
-
-	printf("mb->wi - %d\n", mb->wi);	
-	while (mb->ri <= mb->size) {
+	mb->ri = 0;	
+	while (mb->ri < mb->wi) {
 		printf("rms - %f\n", rms(mb, spr));	
-		sum = sum + rms(mb, spr);
+		sum += rms(mb, spr);
 		printf("sum - %Lf\n", sum);	
 		++i;
 	}
@@ -183,7 +188,12 @@ int listen()
 
 		rb->wi = spr * rb->settings->bytes_per_sample;
 		rb->ri = 0;
-		printf("rms = %f\n", rms(rb, spr));
+		if (rms(rb, spr) > bottomline_volume){
+			printf("sound\n");
+		}
+		else{
+			printf("silence\n");
+		}
 	}
 }
 
