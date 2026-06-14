@@ -249,28 +249,30 @@ int open_mic(audio_device *d)
 	return 0;
 }
 
-
-
 double rms(audio_buffer *b, int sa)
 {	
 	int i;
-	short *cur = (short*)b->buf;
-    	long long sum = 0;
-	
-	printf("bytes to read-%d, read index-%d\n", sa * b->settings->bytes_per_sample, b->ri);
-	if ((sa * b->settings->bytes_per_sample) > b->wi) {
-		printf("sa * b->settings->bytes_per_sample %d\n", sa * b->settings->bytes_per_sample);
+	int end = sa * b->settings->bytes_per_sample;
+    long long int sum = 0;
+	short *sample_ptr;
+
+	if (b->ri > b->wi){
+		fprintf(stderr, "Start position is ahead of last written byte\n");
 		return -1.0f;
 	}
-
-	if (b->ri > 0) {
-		cur = (short*)(b->buf + (b->ri - (sa * b->settings->bytes_per_sample)));
+	if (end > b->wi){
+		fprintf(stderr, "Trying to read more samples that were wrote\n");
+		return -1.0f;
 	}
 	
-	for (i = 0; i < sa; i++){
-		sum += (long long)(*cur) * (long long)(*cur);
-		++cur;
+	sample_ptr = (short*)(b->buf + b->ri);
+	while (b->ri < end){
+		b->ri += 2;
+		sum += (long long int)((*sample_ptr) * (*sample_ptr));
+		++sample_ptr;
 	}
 
     return (sqrt((double)sum / sa));
 }
+
+

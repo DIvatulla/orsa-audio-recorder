@@ -51,7 +51,8 @@ int main(int argc, char** argv)
 	}
 	printf("bottom line volume %f\n", bottomline_volume);
 	
-	listen();
+
+	//listen();
 
 	free_ad(recdev);
 	free_ab(main_buffer);
@@ -69,7 +70,7 @@ int setup_main_settings()
 		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings");
 		return -1;
 	}
-	err = init_as(settings, "hw:1", 44100, 1, SND_PCM_FORMAT_S16_LE);
+	err = init_as(settings, "hw:1", 44100, 2, SND_PCM_FORMAT_S16_LE);
 	if (err < 0){
 		return err;
 	}
@@ -126,9 +127,7 @@ int record(audio_buffer *mb, audio_buffer *rb)
 		}
 
 		rb->wi = spr * rb->settings->bytes_per_sample;
-		mb->wi += rb->wi;
-
-		push_ab(main_buffer, rb);
+		push_ab(mb, rb);
 	} while(mb->wi <= (mb->size - rb->size));
 
 	return 0;
@@ -142,8 +141,8 @@ double measure_volume()
 	audio_buffer *mb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
 	audio_buffer *rb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
 	
-	init_ab(mb, settings, am_samples, 4096);
-	init_ab(rb, settings, am_usecs, 10 * 1000000);
+	init_ab(mb, settings, am_usecs, 10 * 1000000);
+	init_ab(rb, settings, am_samples, 4096);
 
 	printf("Measuring volume\n");
 	record(mb, rb);
@@ -155,14 +154,13 @@ double measure_volume()
 		printf("rms - %f\n", rms(mb, spr));	
 		sum = sum + rms(mb, spr);
 		printf("sum - %Lf\n", sum);	
-		mb->ri += rb->size;
 		++i;
 	}
 
 	free_ab(mb);
 	free_ab(rb);
 
-	return (double)(sum / i) + 10.0f;
+	return (double)(sum / i);
 }
 
 int listen()
@@ -170,7 +168,6 @@ int listen()
 	int ret;
 
 	audio_buffer *rb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
-	
 	init_ab(rb, settings, am_samples, spr);
 
 	for (;;) {
@@ -183,16 +180,13 @@ int listen()
 			fprintf(stderr, "Error while recording\n");	
 			break;
 		}
-		rb->wi = spr * rb->settings->bytes_per_sample;
 
-		if (rms(rb, spr) <= bottomline_volume){
-			printf("silence\n");
-		}
-		else {
-			printf("sound\n");
-		}
+		rb->wi = spr * rb->settings->bytes_per_sample;
+		rb->ri = 0;
+		printf("rms = %f\n", rms(rb, spr));
 	}
 }
+
 
 void write_file(char *filename)
 {
