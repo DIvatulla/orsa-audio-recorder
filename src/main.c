@@ -10,7 +10,7 @@ int mb_dur = 60;
 int spr = 4096;
 double bottomline_volume;
 
-int make_settings(audio_settings *s);
+int make_settings(audio_settings **s);
 int make_record_device(audio_device *d, audio_settings *s);
 int record(audio_buffer *mb, audio_buffer *rb);
 double measure_volume(audio_device *d);
@@ -45,15 +45,16 @@ int main(int argc, char** argv)
 }
 
 int make_settings(audio_settings **s)
+
 {
 	int err;
 
 	*s = (audio_settings*)calloc(1, sizeof(audio_settings));
-	if (settings == NULL){
+	if (*s == NULL){
 		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings");
 		return -1;
 	}
-	err = init_as(*settings, 44100, 1, SND_PCM_FORMAT_S16_LE);
+	err = init_as(*s, 44100, 1, SND_PCM_FORMAT_S16_LE);
 	if (err < 0){
 		return err;
 	}
