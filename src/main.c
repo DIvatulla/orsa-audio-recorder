@@ -109,8 +109,8 @@ double measure_volume(audio_device *d)
 
 	mb->ri = 0;	
 	while (mb->ri < mb->wi) {
-		printf("rms - %f\n", rms(mb, 4096, snd_pcm_frames_to_bytes(d, 1)));	
-		sum += rms(mb, mb->ri, snd_pcm_frames_to_bytes(d, 1));
+		printf("rms - %f\n", rms(mb, 4096));	
+		sum += rms(mb, 4096);
 		printf("sum - %Lf\n", sum);	
 		++i;
 	}

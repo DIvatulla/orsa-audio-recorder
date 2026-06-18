@@ -44,6 +44,6 @@ int set_ab_size(audio_buffer *b, audio_device *d, audio_measure mu, int mod);
 int push_ab(audio_buffer *to, audio_buffer *from);
 void free_ab(audio_buffer *ab);
 
-double rms(audio_buffer *b, int usec);
+double rms(audio_buffer *b, int frames);
 
 #endif

@@ -3,9 +3,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
+#include <math.h>	
 
-double rms(audio_buffer *b, int frames, int bpf)
+
+
+double rms(audio_buffer *b, int frames)
 {	
 	int i;
 	int end;
@@ -16,7 +18,7 @@ double rms(audio_buffer *b, int frames, int bpf)
 		fprintf(stderr, "Start position is ahead of last written byte\n");
 		return -1.0f;
 	}
-	end = (b->ri + (frames * bpf));
+	end = (b->ri + (frames * 2));
 	if (end > b->wi){
 		fprintf(stderr, "Trying to read more samples that were wrote\n");
 		printf("b->size - %d, b->wi - %d, end - %d\n", b->size, b->wi, end);
@@ -25,12 +27,12 @@ double rms(audio_buffer *b, int frames, int bpf)
 	
 	sample_ptr = (short*)(b->buf + b->ri);
 	while (b->ri < end){
-		b->ri += bpf;
+		b->ri += 2;
 		sum += (long long int)((*sample_ptr) * (*sample_ptr));
 		++sample_ptr;
 	}
 
-    return (sqrt((double)sum / sa));
+    return (sqrt((double)sum / frames));
 }
 
 
