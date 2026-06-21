@@ -9,7 +9,6 @@
 
 double rms(audio_buffer *b, int frames)
 {	
-	int i;
 	int end;
     long long int sum = 0;
 	short *sample_ptr;
