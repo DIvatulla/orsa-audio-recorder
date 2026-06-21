@@ -26,7 +26,7 @@ double rms(audio_buffer *b, int frames)
 	}
 	
 	for (;b->ri < end; b->ri += 2){
-		sample_ptr = b->buf + b->ri;
+		sample_ptr = (short*)(b->buf + b->ri);
 		sum += (long long int)(*sample_ptr * *sample_ptr);
 	}
 
