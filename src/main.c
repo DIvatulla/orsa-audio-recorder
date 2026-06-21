@@ -7,13 +7,13 @@
 audio_device *recdev = NULL; //recording device 
 audio_settings *settings = NULL; //audio parameters
 int mb_dur = 60;
-int spr = 4096;
 double bottomline_volume;
 
 int make_settings(audio_settings **s);
-int make_record_device(audio_device *d, audio_settings *s);
+int make_record_device(audio_device **d, audio_settings *s);
 int record(audio_buffer *mb, audio_buffer *rb);
 double measure_volume(audio_device *d);
+
 void write_file(audio_buffer *b, char *filename);
 
 
@@ -26,7 +26,7 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-	err = make_record_device(recdev, settings);
+	err = make_record_device(&recdev, settings);
 	if (err < 0){
 		return err;
 	}
@@ -37,6 +37,8 @@ int main(int argc, char** argv)
 		return 1;
 	}
 	printf("bottom line volume %f\n", bottomline_volume);
+
+	listen(recdev);
 
 	free_ad(recdev);
 	free_as(settings);
@@ -58,17 +60,22 @@ int make_settings(audio_settings **s)
 	if (err < 0){
 		return err;
 	}
+
+	return 0;
 }
 
-int make_record_device(audio_device *d, audio_settings *s)
+int make_record_device(audio_device **d, audio_settings *s)
 {
 	int err;
+	char *device_name = "hw:2";
 
-	d = (audio_device*)calloc(1, sizeof(audio_device));
-	d->name = "hw:1";
-	d->handle = NULL;
 
-	return init_rd(d, s);
+	*d = (audio_device*)calloc(1, sizeof(audio_device));
+	(*d)->name = (char*)calloc(5, sizeof(char));
+	strcpy((*d)->name, device_name);
+	(*d)->handle = NULL;
+
+	return init_rd(*d, s);
 }
 
 int record(audio_buffer *mb, audio_buffer *rb)
@@ -87,6 +94,7 @@ int record(audio_buffer *mb, audio_buffer *rb)
 
 		rb->wi += snd_pcm_bytes_to_frames(recdev->handle, rb->size);
 		push_ab(mb, rb);
+		printf("rec is going; mb->wi = %d, (mb->size - rb->size) = %d\n", mb->wi, mb->size - rb->size);
 	} while(mb->wi <= (mb->size - rb->size));
 
 	return 0;
@@ -100,14 +108,14 @@ double measure_volume(audio_device *d)
 	audio_buffer *mb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
 	audio_buffer *rb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
 	
-	init_ab(mb, d, am_usecs, 10 * 1000000);
+	init_ab(mb, d, am_secs, 60);
 	init_ab(rb, d, am_frames, 4096);
 
 	printf("Measuring volume\n");
 	record(mb, rb);
 
 	mb->ri = 0;	
-	while (mb->ri < mb->wi) {
+	while (mb->ri < (mb->wi - (mb->wi % (int)snd_pcm_frames_to_bytes(d->handle, 4096)))){
 		printf("rms - %f\n", rms(mb, 4096));	
 		sum += rms(mb, 4096);
 		printf("sum - %Lf\n", sum);	
@@ -120,28 +128,31 @@ double measure_volume(audio_device *d)
 	return (double)(sum / i);
 }
 
-/*
-int listen()
+int listen(audio_device *d)
 {
+	double curms;
 	int ret;
 
 	audio_buffer *rb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
-	init_ab(rb, settings, am_samples, spr);
+	init_ab(rb, d, am_frames, 4096);
 
 	for (;;) {
 		rb->wi = 0;
-		ret = snd_pcm_readi(recdev->pcm_device, rb->buf, rb->samples);
+		ret = snd_pcm_readi(d->handle, rb->buf, snd_pcm_bytes_to_frames(recdev->handle, 4096));
 		if (ret == -EPIPE){
-			snd_pcm_prepare(recdev->pcm_device);
+			snd_pcm_prepare(d->handle);
 		}
 		else if (ret < 0){
 			fprintf(stderr, "Error while recording\n");	
 			break;
 		}
 
-		rb->wi = spr * rb->settings->bytes_per_sample;
+		rb->wi += (int)snd_pcm_frames_to_bytes(d->handle, 4096);
 		rb->ri = 0;
-		if (rms(rb, spr) > bottomline_volume){
+
+		curms = rms(rb, 4096);
+		printf("current rms - %f\n", curms);
+		if (curms > (bottomline_volume + 5.0f)){
 			printf("sound\n");
 		}
 		else{
@@ -149,7 +160,6 @@ int listen()
 		}
 	}
 }
-*/
 
 
 void write_file(audio_buffer *b, char *filename)

@@ -67,6 +67,7 @@ int init_rd(audio_device *d, audio_settings *s)
 
 void free_ad(audio_device *d)
 {
+	free(d->name);
     snd_pcm_hw_params_free(d->params);
     snd_pcm_close(d->handle);
 }

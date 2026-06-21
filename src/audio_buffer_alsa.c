@@ -19,7 +19,7 @@ int set_ab_size(audio_buffer *b, audio_device *d, audio_measure mu, int mod)
     snd_pcm_hw_params_get_rate(d->params, &rate, 0);
 
 	switch (mu){
-		case am_usecs:
+		case am_secs:
             b->size = snd_pcm_frames_to_bytes(d->handle, rate * mod);
 			break;
 		case am_samples:

@@ -21,7 +21,7 @@ typedef struct {
 } audio_device;
 
 typedef enum {
-	am_usecs = 1, //count frames by second
+	am_secs = 1, //count frames by second
 	am_samples = 2,
 	am_frames = 3 //count frames by sample rate and amoutn of channels
 } audio_measure;
