@@ -13,7 +13,7 @@ int make_settings(audio_settings **s);
 int make_record_device(audio_device **d, audio_settings *s);
 int record(audio_buffer *mb, audio_buffer *rb);
 double measure_volume(audio_device *d);
-
+int listen(audio_device *d);
 void write_file(audio_buffer *b, char *filename);
 
 
@@ -38,7 +38,7 @@ int main(int argc, char** argv)
 	}
 	printf("bottom line volume %f\n", bottomline_volume);
 
-	listen(recdev);
+	//listen(recdev);
 
 	free_ad(recdev);
 	free_as(settings);
@@ -47,7 +47,6 @@ int main(int argc, char** argv)
 }
 
 int make_settings(audio_settings **s)
-
 {
 	int err;
 
@@ -152,7 +151,7 @@ int listen(audio_device *d)
 
 		curms = rms(rb, 4096);
 		printf("current rms - %f\n", curms);
-		if (curms > (bottomline_volume + 5.0f)){
+		if (curms > (bottomline_volume + 10.0f)){
 			printf("sound\n");
 		}
 		else{

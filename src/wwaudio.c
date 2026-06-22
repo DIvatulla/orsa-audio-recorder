@@ -5,8 +5,6 @@
 #include <string.h>
 #include <math.h>	
 
-
-
 double rms(audio_buffer *b, int frames)
 {	
 	int end;

@@ -27,7 +27,7 @@ typedef enum {
 } audio_measure;
 
 typedef struct {
-	char *buf;
+	unsigned char *buf;
 	int size;
 	int wi;	//write index
 	int ri; //read index

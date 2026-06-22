@@ -26,7 +26,7 @@ int set_ab_size(audio_buffer *b, audio_device *d, audio_measure mu, int mod)
 			b->size =  snd_pcm_samples_to_bytes(d->handle, mod);
 			break;
 		case am_frames:
-			b->size = snd_pcm_frames_to_bytes(d->handle, 1) * mod;
+			b->size = snd_pcm_frames_to_bytes(d->handle, mod);
 			break;
 		default:
 			fprintf(stderr, "Unknown specifier for audio buffer memory allocation\n");
@@ -54,7 +54,7 @@ int init_ab(audio_buffer *b, audio_device *d, audio_measure mu, int mod)
 		return err;
 	}
 
-	b->buf = (char*)calloc(b->size, sizeof(char));
+	b->buf = (unsigned char*)calloc(b->size, sizeof(char));
 	if (b->buf == NULL) {
 		fprintf(stderr, "Error while allocating memory for audio buffer\n");
 		return -1;
