@@ -1,4 +1,5 @@
 #include "../include/wwaudio.h"
+#include "../include/wwmp3.h"
 #include <alsa/asoundlib.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -8,14 +9,15 @@ audio_device *recdev = NULL; //recording device
 audio_settings *settings = NULL; //audio parameters
 int mb_dur = 60;
 double bottomline_volume;
+pthread_mutex_t recdev_mutex;
 
 int make_settings(audio_settings **s);
 int make_record_device(audio_device **d, audio_settings *s);
 int record(audio_buffer *mb, audio_buffer *rb);
 double measure_volume(audio_device *d);
 int listen(audio_device *d);
-void write_file(audio_buffer *b, char *filename);
-
+void write_file(unsigned char *b, int size, char *filename);
+void make_mp3();
 
 int main(int argc, char** argv)
 {   
@@ -31,14 +33,17 @@ int main(int argc, char** argv)
 		return err;
 	}
 
+	/*
 	bottomline_volume = measure_volume(recdev);
 	if (bottomline_volume < 0) {
 		fprintf(stderr, "RMS calculation is -1.0");
 		return 1;
 	}
 	printf("bottom line volume %f\n", bottomline_volume);
+	*/
 
 	//listen(recdev);
+	make_mp3();
 
 	free_ad(recdev);
 	free_as(settings);
@@ -161,15 +166,42 @@ int listen(audio_device *d)
 }
 
 
-void write_file(audio_buffer *b, char *filename)
+void write_file(unsigned char *b, int size, char *filename)
 {
 	FILE *f = fopen(filename, "wb");
     if (!f) { 
 		fprintf(stderr, "fopen");
 	}
-	printf("m->wi %d\n", b->wi);
-    fwrite(b->buf, sizeof(char), b->wi, f);
+    fwrite(b, sizeof(char), size, f);
     fclose(f);
 
     printf("Saved\n");
+}
+
+void make_mp3()
+{
+	int filesize = 0;
+	lame_enc *lemp3 = (lame_enc*)calloc(1, sizeof(lame_enc));
+	lame_mp3_buf *lbmp3 = (lame_mp3_buf*)calloc(1, sizeof(lame_mp3_buf));
+	audio_buffer *mb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	audio_buffer *rb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	
+	init_ab(mb, recdev, am_secs, 10);
+	init_ab(rb, recdev, am_frames, 4096);
+	record(mb, rb);
+	
+	init_lame_mp3_buf(lbmp3, mb);
+	init_enc(lemp3, recdev, 128, defaulteq);
+	encode(lemp3, lbmp3, recdev, mb, &filesize);
+	write_file(lbmp3->buf, filesize, "./out.mp3");  
+}
+
+void *mvol(void *arg)
+{
+
+}
+
+void *main_loop(void *arg)
+{
+
 }
