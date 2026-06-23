@@ -32,7 +32,7 @@ int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab
         enc->lame,
         (short*)ab->buf,
         NULL,
-        snd_pcm_bytes_to_samples(d->handle, ab->size),
+        snd_pcm_bytes_to_samples(d->handle, ab->wi),
         lbmp3->buf,
         lbmp3->size
     );

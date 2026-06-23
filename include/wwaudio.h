@@ -41,6 +41,7 @@ void free_ad(audio_device *d);
 
 int init_ab(audio_buffer *b, audio_device *d, audio_measure mu, int mod);
 int set_ab_size(audio_buffer *b, audio_device *d, audio_measure mu, int mod);
+unsigned int calc_ab_size(audio_device *d, audio_measure mu, int mod);
 int push_ab(audio_buffer *to, audio_buffer *from);
 void free_ab(audio_buffer *ab);
 
