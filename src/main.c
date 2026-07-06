@@ -9,17 +9,24 @@ audio_device *recdev = NULL; //recording device
 audio_settings *settings = NULL; //audio parameters
 int mb_dur = 60;
 double bottomline_volume;
+audio_device *playdev;
+
 lame_enc *lemp3;
 lame_mp3_buf *lbmp3;
 
+mpeg_dec *mdmp3;
+
 int make_settings(audio_settings **s);
 int make_record_device(audio_device **d, audio_settings *s);
+int make_play_device(audio_device **d, audio_settings *s);
 int record(audio_buffer *mb, audio_buffer *rb, double border_vol, int sf_count);
 double measure_volume();
 int listen(audio_device *d);
 void write_file(unsigned char *b, int size, char *filename);
 int make_mp3_buffer(lame_mp3_buf **lbuf, audio_buffer *ab);
 int make_mp3_encoder(lame_enc **le);
+int make_mp3_decoder(mpeg_dec **mdmp3);
+void play_mp3(mpeg_dec *mdmp3, audio_buffer *rb);
 
 int main(int argc, char** argv)
 {   
@@ -33,6 +40,10 @@ int main(int argc, char** argv)
 		return err;
 	}
 	err = make_record_device(&recdev, settings);
+	if (err < 0){
+		return err;
+	}
+	err = make_play_device(&playdev, settings);
 	if (err < 0){
 		return err;
 	}
@@ -58,14 +69,21 @@ int main(int argc, char** argv)
 	lbmp3 = (lame_mp3_buf*)calloc(1, sizeof(lame_mp3_buf));
 	init_lame_mp3_buf(lbmp3, mb);
 	encode(lemp3, lbmp3, recdev, mb, &mp3_filesize);
-	write_file(lbmp3->buf, mp3_filesize, "./out.mp3");
+	
 
 	free_ab(mb);
 	free_ab(rb);
 	free_ad(recdev);
 	free_as(settings);
 	free_enc(lemp3);
+
+	make_mp3_decoder(&mdmp3);
+	decode_mp3_settings(mdmp3, lbmp3);
+	play_mp3(mdmp3, rb);
+
+	write_file(lbmp3->buf, mp3_filesize, "./out.mp3");
 	free_lame_mp3_buf(lbmp3);
+	free_ad(playdev);
 
 	return 0;
 }
@@ -90,7 +108,7 @@ int make_settings(audio_settings **s)
 int make_record_device(audio_device **d, audio_settings *s)
 {
 	int err;
-	char *device_name = "hw:0";
+	char *device_name = "hw:1";
 
 	*d = (audio_device*)calloc(1, sizeof(audio_device));
 	(*d)->name = (char*)calloc(5, sizeof(char));
@@ -98,6 +116,19 @@ int make_record_device(audio_device **d, audio_settings *s)
 	(*d)->handle = NULL;
 
 	return init_rd(*d, s);
+}
+
+int make_play_device(audio_device **d, audio_settings *s)
+{
+	int err;
+	char *device_name = "plughw:2";
+
+	*d = (audio_device*)calloc(1, sizeof(audio_device));
+	(*d)->name = (char*)calloc(5, sizeof(char));
+	strcpy((*d)->name, device_name);
+	(*d)->handle = NULL;
+
+	return init_pd(*d, s);
 }
 
 int make_mp3_encoder(lame_enc **le)
@@ -124,6 +155,23 @@ int make_mp3_buffer(lame_mp3_buf **lbuf, audio_buffer *ab)
 		return -1;
 	}
 	err = init_lame_mp3_buf(*lbuf, ab);
+	if (err < 0){
+		return err;
+	}
+
+	return 0;
+}
+
+int make_mp3_decoder(mpeg_dec **mdmp3)
+{
+	int err;
+
+	*mdmp3 = (mpeg_dec*)calloc(1, sizeof(mpeg_dec));
+	if ((*mdmp3) == NULL) {
+		fprintf(stderr, "can't malloc mpg123 decoder\n");
+		return -1;
+	}
+	err = init_dec(*mdmp3);
 	if (err < 0){
 		return err;
 	}
@@ -235,4 +283,15 @@ double measure_volume(audio_buffer *ab)
 	}
 	
 	return (double)(sum / i);
+}
+
+void play_mp3(mpeg_dec *mdmp3, audio_buffer *rb)
+{
+	size_t done;
+
+	snd_pcm_prepare(playdev->handle);
+	while (mpg123_read(mdmp3->handle, rb->buf, rb->size, &done) == MPG123_OK){
+		snd_pcm_writei(playdev->handle, rb->buf, 4096);
+	}
+	snd_pcm_drain(playdev->handle);
 }

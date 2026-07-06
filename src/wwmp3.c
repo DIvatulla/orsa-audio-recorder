@@ -24,6 +24,8 @@ int init_enc(lame_enc *enc, audio_device *d, int br, mp3_quality q)
 
     enc->bitrate = br;
     enc->quality = q;
+
+    return 0;
 }
 
 int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab, int *fsz)
@@ -66,5 +68,56 @@ void free_lame_mp3_buf(lame_mp3_buf *lbmp3)
 {
     free(lbmp3->buf);
     free(lbmp3);
+}
+
+int init_dec(mpeg_dec *dec)
+{
+    int err;
+
+    dec->handle = mpg123_new(NULL, &err);
+    if (dec->handle == NULL){
+        fprintf(stderr, "Can't create decoder\n");
+        return -1;
+    }
+    
+    dec->rate = 0;
+    dec->channels = 0;
+    dec->pcm_format = MPG123_ENC_16; //0000 0000 0100 0000
+
+    return 0;
+}
+
+int decode_mp3_settings(mpeg_dec *dec, lame_mp3_buf *lbmp3)
+{
+    int ret, res;
+    audio_buffer *pcmb;
+    size_t done;
+
+    pcmb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+
+    mpg123_open_feed(dec->handle);
+    mpg123_feed(dec->handle, lbmp3->buf, lbmp3->size);
+    pcmb->size = mpg123_outblock(dec->handle);
+    pcmb->buf = (unsigned char*)calloc(pcmb->size, sizeof(char));
+
+    printf("pcm buffer's size in samples %ld\n", mpg123_length(dec->handle));
+
+    while ((ret = mpg123_read(dec->handle, pcmb->buf, pcmb->size, &done)) != MPG123_NEED_MORE){
+        printf("mp3 read\n");
+        if (ret == MPG123_NEW_FORMAT) {
+            mpg123_getformat(dec->handle, &dec->rate, &dec->channels, &dec->pcm_format);
+            printf("%ld Hz, %d channels, %d pcm_format\n", dec->rate, dec->channels, MPG123_SAMPLESIZE(dec->pcm_format));
+            res = 0;
+            goto cleanup;
+        }
+    }
+    res = -1;
+    fprintf(stderr, "Can't get settings for decoding this mp3 file\n");
+
+cleanup:        
+    free_ab(pcmb);
+    mpg123_close(dec->handle);
+
+    return res;
 }
 
