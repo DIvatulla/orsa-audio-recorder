@@ -26,7 +26,7 @@ void write_file(unsigned char *b, int size, char *filename);
 int make_mp3_buffer(lame_mp3_buf **lbuf, audio_buffer *ab);
 int make_mp3_encoder(lame_enc **le);
 int make_mp3_decoder(mpeg_dec **mdmp3);
-void play_mp3(mpeg_dec *mdmp3, audio_buffer *rb);
+void play_mp3(mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
 
 int main(int argc, char** argv)
 {   
@@ -52,7 +52,7 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-	init_ab(mb, recdev, am_secs, 60);
+	init_ab(mb, recdev, am_secs, 30);
 	init_ab(rb, recdev, am_frames, 4096);
 
 	record(mb, rb, 0.0f, 0);
@@ -70,16 +70,16 @@ int main(int argc, char** argv)
 	init_lame_mp3_buf(lbmp3, mb);
 	encode(lemp3, lbmp3, recdev, mb, &mp3_filesize);
 	
-
 	free_ab(mb);
-	free_ab(rb);
+	//free_ab(rb);
 	free_ad(recdev);
 	free_as(settings);
 	free_enc(lemp3);
 
 	make_mp3_decoder(&mdmp3);
 	decode_mp3_settings(mdmp3, lbmp3);
-	play_mp3(mdmp3, rb);
+	play_mp3(mdmp3, lbmp3, rb);
+	free_ab(rb);
 
 	write_file(lbmp3->buf, mp3_filesize, "./out.mp3");
 	free_lame_mp3_buf(lbmp3);
@@ -108,7 +108,7 @@ int make_settings(audio_settings **s)
 int make_record_device(audio_device **d, audio_settings *s)
 {
 	int err;
-	char *device_name = "hw:1";
+	char *device_name = "hw:0";
 
 	*d = (audio_device*)calloc(1, sizeof(audio_device));
 	(*d)->name = (char*)calloc(5, sizeof(char));
@@ -285,12 +285,16 @@ double measure_volume(audio_buffer *ab)
 	return (double)(sum / i);
 }
 
-void play_mp3(mpeg_dec *mdmp3, audio_buffer *rb)
+void play_mp3(mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb)
 {
+	int ret;
 	size_t done;
 
+	mpg123_open_feed(mdmp3->handle);
+    mpg123_feed(mdmp3->handle, lb->buf, lb->size);
+	
 	snd_pcm_prepare(playdev->handle);
-	while (mpg123_read(mdmp3->handle, rb->buf, rb->size, &done) == MPG123_OK){
+	while ((ret = mpg123_read(mdmp3->handle, rb->buf, rb->size, &done)) == MPG123_OK){
 		snd_pcm_writei(playdev->handle, rb->buf, 4096);
 	}
 	snd_pcm_drain(playdev->handle);

@@ -100,7 +100,7 @@ int decode_mp3_settings(mpeg_dec *dec, lame_mp3_buf *lbmp3)
     pcmb->size = mpg123_outblock(dec->handle);
     pcmb->buf = (unsigned char*)calloc(pcmb->size, sizeof(char));
 
-    printf("pcm buffer's size in samples %ld\n", mpg123_length(dec->handle));
+    printf("pcm buffer's size %d\n", pcmb->size);
 
     while ((ret = mpg123_read(dec->handle, pcmb->buf, pcmb->size, &done)) != MPG123_NEED_MORE){
         printf("mp3 read\n");
