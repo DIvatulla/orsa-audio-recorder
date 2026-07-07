@@ -27,7 +27,7 @@ typedef enum {
 } audio_measure;
 
 typedef struct {
-	char *buf;
+	unsigned char *buf;
 	int size;
 	int wi;	//write index
 	int ri; //read index
@@ -37,10 +37,12 @@ int init_as(audio_settings *s, unsigned int r, int ch, snd_pcm_format_t pcm_f);
 void free_as(audio_settings *s);
 
 int init_rd(audio_device *d, audio_settings *s);
+int init_pd(audio_device *d, audio_settings *s);
 void free_ad(audio_device *d);
 
 int init_ab(audio_buffer *b, audio_device *d, audio_measure mu, int mod);
 int set_ab_size(audio_buffer *b, audio_device *d, audio_measure mu, int mod);
+unsigned int calc_ab_size(audio_device *d, audio_measure mu, int mod);
 int push_ab(audio_buffer *to, audio_buffer *from);
 void free_ab(audio_buffer *ab);
 
