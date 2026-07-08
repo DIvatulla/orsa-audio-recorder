@@ -17,6 +17,25 @@ int init_as(audio_settings *s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
 	return 0;
 }
 
+int make_as(audio_settings **s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
+{
+    int err;
+
+	*s = (audio_settings*)calloc(1, sizeof(audio_settings));
+	if (*s == NULL){
+		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings\n");
+		return -1;
+	}
+
+	err = init_as(*s, r, ch, pcm_f);
+	if (err < 0){
+        free_as(*s);
+		return err;
+	}
+
+	return 0;
+}
+
 void free_as(audio_settings *s)
 {
     free(s);

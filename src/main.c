@@ -35,18 +35,21 @@ int main(int argc, char** argv)
 	audio_buffer *mb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
 	audio_buffer *rb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
 
-	err = make_settings(&settings);
+	err = make_as(&settings, 44100, 1, SND_PCM_FORMAT_S16_LE);
 	if (err < 0){
 		return err;
 	}
-	err = make_record_device(&recdev, settings);
+
+	err = make_ad(&recdev, "plughw:0", settings, SND_PCM_STREAM_CAPTURE);
 	if (err < 0){
 		return err;
 	}
-	err = make_play_device(&playdev, settings);
+
+	err = make_ad(&playdev, "plughw:0" settings, SND_PCM_STREAM_PLAYBACK);
 	if (err < 0){
 		return err;
 	}
+
 	err = make_mp3_encoder(&lemp3);
 	if (err < 0){
 		return err;
@@ -86,49 +89,6 @@ int main(int argc, char** argv)
 	free_ad(playdev);
 
 	return 0;
-}
-
-int make_settings(audio_settings **s)
-{
-	int err;
-
-	*s = (audio_settings*)calloc(1, sizeof(audio_settings));
-	if (*s == NULL){
-		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings");
-		return -1;
-	}
-	err = init_as(*s, 44100, 1, SND_PCM_FORMAT_S16_LE);
-	if (err < 0){
-		return err;
-	}
-
-	return 0;
-}
-
-int make_record_device(audio_device **d, audio_settings *s)
-{
-	int err;
-	char *device_name = "hw:0";
-
-	*d = (audio_device*)calloc(1, sizeof(audio_device));
-	(*d)->name = (char*)calloc(5, sizeof(char));
-	strcpy((*d)->name, device_name);
-	(*d)->handle = NULL;
-
-	return init_rd(*d, s);
-}
-
-int make_play_device(audio_device **d, audio_settings *s)
-{
-	int err;
-	char *device_name = "plughw:2";
-
-	*d = (audio_device*)calloc(1, sizeof(audio_device));
-	(*d)->name = (char*)calloc(5, sizeof(char));
-	strcpy((*d)->name, device_name);
-	(*d)->handle = NULL;
-
-	return init_pd(*d, s);
 }
 
 int make_mp3_encoder(lame_enc **le)

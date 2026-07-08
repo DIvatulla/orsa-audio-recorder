@@ -9,6 +9,7 @@ int init_enc(lame_enc *enc, audio_device *d, int br, mp3_quality q)
 {
     unsigned int rate = 0;
     unsigned int channels = 0;
+
     snd_pcm_hw_params_get_rate(d->params, &rate, 0);
     snd_pcm_hw_params_get_channels(d->params, &channels);
     
@@ -45,6 +46,25 @@ int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab
     }
 
     return 0;
+}
+
+int make_enc(lame_enc **enc, audio_device *recdev, mp3_quality q)
+{
+    int err;
+
+    *enc = (lame_enc*)calloc(1, sizeof(lame_enc));
+	if ((*enc) == NULL){
+		fprintf(stderr, "Can't malloc lame_enc\n");
+		return -1;
+	}
+
+	err = init_enc(*enc, recdev, 128, q);
+    if (err < 0){
+        free(enc);
+        return -1;
+    }
+
+	return 0;
 }
 
 void free_enc(lame_enc *enc)
