@@ -50,7 +50,7 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-	err = make_mp3_encoder(&lemp3);
+	err = make_enc(&lemp3, recdev, defaulteq);
 	if (err < 0){
 		return err;
 	}
