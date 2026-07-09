@@ -5,6 +5,11 @@
 
 int init_as(audio_settings *s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
 {
+	if (s == NULL) {
+        fprintf(stderr, "Pointer to settings is null\n");
+        return -1;
+    }
+
 	if (r < 8000){
 		fprintf(stderr, "This sample rate is less than 8000 (old telephone record quality)\n");
 		return -1;
@@ -29,12 +34,7 @@ int init_as(audio_settings *s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
 int make_as(audio_settings **s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
 {
     int err;
-
-	if ((*s) == NULL) {
-        fprintf(stderr, "Pointer to settings is null\n");
-        return -1;
-    }
-
+	
 	*s = (audio_settings*)calloc(1, sizeof(audio_settings));
 	if (*s == NULL){
 		fprintf(stderr, "Couldn't allocate memory for main audio buffer's settings\n");
