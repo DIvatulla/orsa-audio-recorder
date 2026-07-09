@@ -32,12 +32,12 @@ typedef struct{
 
 int init_enc(lame_enc *enc, audio_device *d, int br, mp3_quality q);
 int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab, int *fsz);
+int make_enc(lame_enc **enc, audio_device *recdev, mp3_quality q);
 void free_enc(lame_enc *enc);
 
 int init_lame_mp3_buf(lame_mp3_buf *lbmp3, audio_buffer *ab);
+int make_lame_mp3_buf(lame_mp3_buf **lbmp3, audio_buffer *ab);
 void free_lame_mp3_buf(lame_mp3_buf *lbmp3);
-
-//int pcm_to_mp3(audio_buffer *ab, audio_device *d);
 
 int init_dec(mpeg_dec *dec);
 int decode_mp3_settings(mpeg_dec *dec, lame_mp3_buf *lbmp3);

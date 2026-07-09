@@ -8,8 +8,8 @@
 static const unsigned int srate = 44100; //sample rate
 static const int ch = 1;
 static const snd_pcm_format_t record_form = SND_PCM_FORMAT_S16_LE;
-static const mb_dur = 30;
-static const spr = 4096; //samples per read
+static const int mb_dur = 30;
+static const int spr = 4096; //samples per read
 
 audio_device *recdev = NULL; //recording device 
 audio_settings *settings = NULL; //audio parameters
@@ -46,7 +46,7 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-	err = make_ad(&playdev, "plughw:0" settings, SND_PCM_STREAM_PLAYBACK);
+	err = make_ad(&playdev, "plughw:0", settings, SND_PCM_STREAM_PLAYBACK);
 	if (err < 0){
 		return err;
 	}

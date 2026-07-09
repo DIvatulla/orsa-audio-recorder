@@ -77,7 +77,7 @@ int init_lame_mp3_buf(lame_mp3_buf *lbmp3, audio_buffer *ab)
     lbmp3->size = ab->size + ((ab->size / 4) + 1) + 7200;
     lbmp3->buf = (unsigned char*)calloc(lbmp3->size, sizeof(char));
     if (lbmp3 == NULL){
-        fprintf("Can't malloc lame_mp3_buf->buf\n");
+        fprintf(stderr, "Can't malloc lame_mp3_buf->buf\n");
         return -1;
     }
 
