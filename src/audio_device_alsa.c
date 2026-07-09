@@ -3,12 +3,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-int init_ad(audio_device *d, audio_settings *s, snd_pcm_stream_t *mode)
+int init_ad(audio_device *d, audio_settings *s, snd_pcm_stream_t mode)
 {
 	int err;
     unsigned int old_rate = 0;
 
-    err = snd_pcm_open(&(d->handle), d->name, SND_PCM_STREAM_CAPTURE, 0);
+    err = snd_pcm_open(&(d->handle), d->name, mode, 0);
     if (err < 0) {
         fprintf(stderr, "Can't open device %s\n", d->name);
 		return err;
@@ -74,7 +74,7 @@ int make_ad(audio_device **d, char *name, audio_settings *s, snd_pcm_stream_t mo
 	strcpy((*d)->name, name);
 	(*d)->handle = NULL;
 
-	err = init_rd(*d, s, mode);
+	err = init_ad(*d, s, mode);
 	if (err < 0){
 		free_ad(*d);
 		return err;

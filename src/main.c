@@ -5,20 +5,21 @@
 #include <stdio.h>
 #include <math.h>
 
+static const unsigned int srate = 44100; //sample rate
+static const int ch = 1;
+static const snd_pcm_format_t record_form = SND_PCM_FORMAT_S16_LE;
+static const mb_dur = 30;
+static const spr = 4096; //samples per read
+
 audio_device *recdev = NULL; //recording device 
 audio_settings *settings = NULL; //audio parameters
-int mb_dur = 60;
 double bottomline_volume;
 audio_device *playdev;
 
 lame_enc *lemp3;
 lame_mp3_buf *lbmp3;
-
 mpeg_dec *mdmp3;
 
-int make_settings(audio_settings **s);
-int make_record_device(audio_device **d, audio_settings *s);
-int make_play_device(audio_device **d, audio_settings *s);
 int record(audio_buffer *mb, audio_buffer *rb, double border_vol, int sf_count);
 double measure_volume();
 int listen(audio_device *d);
@@ -32,10 +33,10 @@ int main(int argc, char** argv)
 {   
 	int err = 0;
 	int mp3_filesize;
-	audio_buffer *mb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
-	audio_buffer *rb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	audio_buffer *mb;
+	audio_buffer *rb;
 
-	err = make_as(&settings, 44100, 1, SND_PCM_FORMAT_S16_LE);
+	err = make_as(&settings, srate, ch, record_form);
 	if (err < 0){
 		return err;
 	}
@@ -55,8 +56,15 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-	init_ab(mb, recdev, am_secs, 30);
-	init_ab(rb, recdev, am_frames, 4096);
+	err = make_ab(&mb, recdev, am_secs, mb_dur);
+	if (err < 0){
+		return err;
+	}
+
+	err = make_ab(&rb, recdev, am_frames, spr);
+	if (err < 0){
+		return err;
+	}
 
 	record(mb, rb, 0.0f, 0);
 	bottomline_volume = measure_volume(mb);
@@ -67,14 +75,15 @@ int main(int argc, char** argv)
 	printf("bottom line volume %f\n", bottomline_volume);
 
 	mb->wi = 0;
-	record(mb, rb, bottomline_volume, calc_ab_size(recdev, am_secs, 5));
+	record(mb, rb, bottomline_volume, calc_ab_size(recdev, am_secs, 3));
 	
-	lbmp3 = (lame_mp3_buf*)calloc(1, sizeof(lame_mp3_buf));
-	init_lame_mp3_buf(lbmp3, mb);
+	err = make_lame_mp3_buf(&lbmp3, mb);
+	if (err < 0){
+		return -1;
+	}
 	encode(lemp3, lbmp3, recdev, mb, &mp3_filesize);
 	
 	free_ab(mb);
-	//free_ab(rb);
 	free_ad(recdev);
 	free_as(settings);
 	free_enc(lemp3);

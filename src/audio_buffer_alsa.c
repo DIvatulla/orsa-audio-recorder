@@ -74,6 +74,27 @@ int init_ab(audio_buffer *b, audio_device *d, audio_measure mu, int mod)
 	return 0;
 }
 
+int make_ab(audio_buffer **b, audio_device *d, audio_measure mu, int mod)
+{
+	int err;
+
+	*b = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	if ((*b) == NULL){
+		fprintf(stderr, "Can't malloc audio buffer\n");
+		return -1;
+	}
+
+	(*b)->buf = NULL;
+	(*b)->size = 0;
+	
+	err = init_ab(*b, d, mu, mod);
+	if (err < 0){
+		fprintf(stderr, "Can't init audio buffer");
+		free_ab(*b);
+		return err;
+	}
+}
+
 int push_ab(audio_buffer *to, audio_buffer *from)
 {
 	if (from->size >= to->size) {
@@ -95,6 +116,8 @@ int push_ab(audio_buffer *to, audio_buffer *from)
 
 void free_ab(audio_buffer *b)
 {
-    free(b->buf);
+	if (b->buf != NULL){
+		free(b->buf);
+	}
     free(b);
 }
