@@ -66,6 +66,7 @@ int main(int argc, char** argv)
 		return err;
 	}
 
+#ifdef RMS
 	record(mb, rb, 0.0f, 0);
 	bottomline_volume = measure_volume(mb);
 	if (bottomline_volume < 0) {
@@ -73,7 +74,8 @@ int main(int argc, char** argv)
 		return 1;
 	}
 	printf("bottom line volume %f\n", bottomline_volume);
-
+#endif
+	
 	mb->wi = 0;
 	record(mb, rb, bottomline_volume, calc_ab_size(recdev, am_secs, 3));
 	

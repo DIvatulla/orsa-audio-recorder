@@ -12,3 +12,5 @@ build/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@ $(LIBS)
 
 .PHONY:	clean
+clean:
+	rm -f $(OBJ)
