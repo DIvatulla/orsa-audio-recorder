@@ -21,7 +21,7 @@ lame_mp3_buf *lbmp3;
 mpeg_dec *mdmp3;
 
 int record(audio_buffer *mb, audio_buffer *rb, double border_vol, int sf_count);
-double measure_volume();
+double measure_volume(audio_buffer *ab);
 int listen(audio_device *d);
 void write_file(unsigned char *b, int size, char *filename);
 int make_mp3_buffer(lame_mp3_buf **lbuf, audio_buffer *ab);

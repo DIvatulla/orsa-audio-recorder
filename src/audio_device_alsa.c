@@ -64,7 +64,7 @@ int make_ad(audio_device **d, char *name, audio_settings *s, snd_pcm_stream_t mo
 	int err = 9;
 
 	*d = (audio_device*)calloc(1, sizeof(audio_device));
-	if (*d == NULL) {
+	if (*d == NULL){
 		fprintf(stderr, "Can't malloc device\n");
 		return -1;
 	}
