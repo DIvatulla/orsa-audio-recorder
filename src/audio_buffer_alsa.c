@@ -93,6 +93,8 @@ int make_ab(audio_buffer **b, audio_device *d, audio_measure mu, int mod)
 		free_ab(*b);
 		return err;
 	}
+
+	return 0;
 }
 
 int push_ab(audio_buffer *to, audio_buffer *from)

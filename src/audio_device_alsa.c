@@ -6,7 +6,6 @@
 int init_ad(audio_device *d, audio_settings *s, snd_pcm_stream_t mode)
 {
 	int err;
-    unsigned int old_rate = 0;
 
     err = snd_pcm_open(&(d->handle), d->name, mode, 0);
     if (err < 0) {
@@ -38,7 +37,7 @@ int init_ad(audio_device *d, audio_settings *s, snd_pcm_stream_t mode)
 		return err;
 	}
 
-	err = snd_pcm_hw_params_set_rate(d->handle, d->params, &s->rate, 0);
+	err = snd_pcm_hw_params_set_rate(d->handle, d->params, s->rate, 0);
 	if (err < 0){
 		fprintf(stderr, "Can't set rate on %s to %d\n",
             d->name, s->rate);
