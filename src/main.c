@@ -70,7 +70,7 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-#if RMS 1
+#if RMS
 	record(mb, rb, 0.0f, 0);
 	bottomline_volume = measure_volume(mb);
 	if (bottomline_volume < 0) {
