@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <math.h>
 
+#ifndef RMS
+#define RMS 0
+#endif
+
 static const unsigned int srate = 44100; //sample rate
 static const int ch = 1;
 static const snd_pcm_format_t record_form = SND_PCM_FORMAT_S16_LE;
@@ -41,12 +45,12 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-	err = make_ad(&recdev, "plughw:0", settings, SND_PCM_STREAM_CAPTURE);
+	err = make_ad(&recdev, "plughw:2", settings, SND_PCM_STREAM_CAPTURE);
 	if (err < 0){
 		return err;
 	}
 
-	err = make_ad(&playdev, "plughw:0", settings, SND_PCM_STREAM_PLAYBACK);
+	err = make_ad(&playdev, "plughw:2", settings, SND_PCM_STREAM_PLAYBACK);
 	if (err < 0){
 		return err;
 	}
@@ -66,7 +70,7 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-#ifdef RMS
+#if RMS 1
 	record(mb, rb, 0.0f, 0);
 	bottomline_volume = measure_volume(mb);
 	if (bottomline_volume < 0) {
