@@ -1,9 +1,11 @@
 #include "../include/wwaudio.h"
 #include "../include/wwmp3.h"
+#include "../include/clarg.h"
 #include <alsa/asoundlib.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <unistd.h>
 
 #ifndef RMS
 #define RMS 0
@@ -39,6 +41,15 @@ int main(int argc, char** argv)
 	int mp3_filesize;
 	audio_buffer *mb;
 	audio_buffer *rb;
+	char **cli_arguments;
+
+	cli_arguments = parse_clargs(argc, argv);
+	if (cli_arguments == NULL){
+		free_clargs(cli_arguments);
+		return -1;
+	}
+	free_clargs(cli_arguments);
+	exit(0);
 
 	err = make_as(&settings, srate, ch, record_form);
 	if (err < 0){
@@ -94,7 +105,7 @@ int main(int argc, char** argv)
 	free_as(settings);
 	free_enc(lemp3);
 
-	make_mp3_decoder(&mdmp3);
+	make_dec(&mdmp3);
 	decode_mp3_settings(mdmp3, lbmp3);
 	play_mp3(mdmp3, lbmp3, rb);
 	free_ab(rb);
@@ -102,54 +113,6 @@ int main(int argc, char** argv)
 	write_file(lbmp3->buf, mp3_filesize, "./out.mp3");
 	free_lame_mp3_buf(lbmp3);
 	free_ad(playdev);
-
-	return 0;
-}
-
-int make_mp3_encoder(lame_enc **le)
-{
-	int err;
-
-	*le = (lame_enc*)calloc(1, sizeof(lame_enc));
-	if ((*le) == NULL){
-		fprintf(stderr, "can't malloc lame_enc\n");
-		return -1;
-	}
-	init_enc(*le, recdev, 128, defaulteq);
-
-	return 0;
-}
-
-int make_mp3_buffer(lame_mp3_buf **lbuf, audio_buffer *ab)
-{
-	int err;
-	
-	*lbuf = (lame_mp3_buf*)calloc(1, sizeof(lame_mp3_buf));
-	if ((*lbuf) == NULL){
-		fprintf(stderr, "can't malloc lame_mp3_buf\n");
-		return -1;
-	}
-	err = init_lame_mp3_buf(*lbuf, ab);
-	if (err < 0){
-		return err;
-	}
-
-	return 0;
-}
-
-int make_mp3_decoder(mpeg_dec **mdmp3)
-{
-	int err;
-
-	*mdmp3 = (mpeg_dec*)calloc(1, sizeof(mpeg_dec));
-	if ((*mdmp3) == NULL) {
-		fprintf(stderr, "can't malloc mpg123 decoder\n");
-		return -1;
-	}
-	err = init_dec(*mdmp3);
-	if (err < 0){
-		return err;
-	}
 
 	return 0;
 }

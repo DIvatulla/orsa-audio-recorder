@@ -1,3 +1,6 @@
+#ifndef WWMP3_H
+#define WWMP3_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <lame/lame.h>
@@ -40,4 +43,8 @@ int make_lame_mp3_buf(lame_mp3_buf **lbmp3, audio_buffer *ab);
 void free_lame_mp3_buf(lame_mp3_buf *lbmp3);
 
 int init_dec(mpeg_dec *dec);
+int make_dec(mpeg_dec **dec);
 int decode_mp3_settings(mpeg_dec *dec, lame_mp3_buf *lbmp3);
+void free_dec(mpeg_dec *dec);
+
+#endif

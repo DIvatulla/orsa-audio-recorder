@@ -131,6 +131,23 @@ int init_dec(mpeg_dec *dec)
     return 0;
 }
 
+int make_dec(mpeg_dec **dec)
+{
+    int err;
+
+	*dec = (mpeg_dec*)calloc(1, sizeof(mpeg_dec));
+	if ((*dec) == NULL) {
+		fprintf(stderr, "can't malloc mpg123 decoder\n");
+		return -1;
+	}
+	err = init_dec(*dec);
+	if (err < 0){
+		return err;
+	}
+
+	return 0;
+}
+
 int decode_mp3_settings(mpeg_dec *dec, lame_mp3_buf *lbmp3)
 {
     int ret, res;
@@ -163,5 +180,11 @@ cleanup:
     mpg123_close(dec->handle);
 
     return res;
+}
+
+void free_dec(mpeg_dec *dec)
+{
+    mpg123_close(dec->handle);
+    free(dec);
 }
 
