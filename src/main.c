@@ -1,6 +1,7 @@
 #include "../include/wwaudio.h"
 #include "../include/wwmp3.h"
 #include "../include/clarg.h"
+#include "../include/websokc.h"
 #include <alsa/asoundlib.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,22 +15,14 @@
 #define WF 0
 #endif
 
-#define MAX_PAYLOAD 5242880
-
 static const unsigned int srate = 44100; //sample rate
 static const int ch = 1;
 static const snd_pcm_format_t record_form = SND_PCM_FORMAT_S16_LE;
 static const int mb_dur = 30;
 static const int spr = 4096; //samples per read
 
-//global variables for threads
-int interrupted = 0;
 
-typedef struct{
-    unsigned char send_buf[LWS_PRE + MAX_PAYLOAD]; /* LWS_PRE bytes of headroom for framing */
-    size_t send_len;
-    int    pending_send;
-} ws_session_data;
+int interrupted = 0;
 
 audio_device *recdev = NULL; //recording device 
 audio_settings *settings = NULL; //audio parameters
@@ -45,6 +38,7 @@ double measure_volume(audio_buffer *ab);
 int listen(audio_device *d);
 void write_file(unsigned char *b, int size, char *filename);
 void play_mp3(mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
+int ws_callback(struct lws *wsi, enum lws_callback reason, void *user, void *in, size_t len)
 
 int main(int argc, char** argv)
 {   
@@ -227,78 +221,94 @@ void play_mp3(mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb)
 	snd_pcm_drain(playdev->handle);
 }
 
-
+//Websocket
 
 static void sigint_handler(int sig){ interrupted = 1; }
 
-int queue_message(session_data *data, const char *msg)
+int queue_message(ws_session_data *d, const char *m)
 {
-    size_t len = strlen(msg);
-
     if (len > MAX_PAYLOAD){
         return -1;
     }
 
-    memcpy(&data->send_buf[LWS_PRE], msg, len);
-    data->send_len = len;
-    data->pending_send = 1;
+    memcpy(&d->send_buf[LWS_PRE], m, strlen(m));
+    d->send_len = strlen(m);
+    d->pending_send = 1;
 
     return 0;
 }
 
-int queue_message(ws_session_data *data, const char *msg)
+int ws_callback(struct lws *wsi, enum lws_callback reason, void *user, void *in, size_t len)
 {
-    size_t len = strlen(msg);
-
-    if (len > MAX_PAYLOAD){
-        return -1;
-    }
-
-    memcpy(&data->send_buf[LWS_PRE], msg, len);
-    data->send_len = len;
-    data->pending_send = 1;
-
-    return 0;
-}
-
-int callback_ws(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
-{
-    ws_session_data *data = (ws_session_data*)user;
-
+    ws_session_data *d = (ws_session_data*)user;
+    
     switch(reason){
-    case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-        lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char *)in : "(null)");
-        break;
-    case LWS_CALLBACK_CLIENT_ESTABLISHED:
-        lwsl_user("Connected to server.\n");
-        queue_message(data, "Hello from smart-speaker!");
-        lws_callback_on_writable(wsi);
-        break;
-    case LWS_CALLBACK_CLIENT_RECEIVE:
-        lwsl_hexdump_notice(in, len);
-        break;
-    case LWS_CALLBACK_CLIENT_WRITEABLE:
-        if (data->pending_send) {
-            int n = lws_write(wsi, &data->send_buf[LWS_PRE], data->send_len, LWS_WRITE_TEXT);
+        case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+            lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char*)in : "(null)");
+            break;
+        case LWS_CALLBACK_CLIENT_ESTABLISHED:
+            lwsl_user("Connected to server\n");
+            break;
+        case LWS_CALLBACK_CLIENT_WRITEABLE:
+            if (d->pending_send){
+                int sent = lws_write(
+                    wsi, 
+                    &d->send_buf[LWS_PRE], 
+                    data->send_len,
+                    LWS_WRITE_TEXT
+                );
 
-            if (n < (int)data->send_len) {
-                lwsl_err("lws_write failed (%d)\n", n);
-                return -1;
+                if (sent < (int)d->send_len){
+                    lwsl_err("lws_write failed (%d)\n", n);
+                    interrupted = 1;
+                    return -1;
+                }
+
+                d->pending_send = 0;
+                lwsl_user("Sent %d bytes.\n", n);
             }
-            data->pending_send = 0;
-            lwsl_user("Sent %d bytes.\n", n);
-		}
-		break;
-	case LWS_CALLBACK_CLIENT_CLOSED:
-		lwsl_user("Connection closed.\n");
-        interrupted = 1;	
-		break;
+            break;
+        case LWS_CALLBACK_CLIENT_CLOSED:
+            lwsl_user("Connection closed.\n");
+            interrupted = 1;
+            break;
+        default:
+            break;
+    }
+
+    return 0;
+}
+
+int init_info(
+	struct lws_context_creation_info **i, 
+	struct lws_protocols *p,
+	char *port)
+{
+	*i = (struct lws_context_creation_info*)calloc(
+		1, 
+		sizeof(struct lws_context_creation_info)
+	);
+	if ((*i) == NULL){
+		fprintf(stderr, "can't malloc info for context creation\n");
+		return -1;
 	}
-       
+
+	i->port = CONTEXT_PORT_NO_LISTEN;
+	i->protocols = (*p);
+	i->gid = -1;
+	i->uid = -1;
+
+	return 0;
+}
 
 void *websocket_thread(void *arg)
 {
+	int err;
 	char **cli_arguments = (char**)arg;
+	struct lws_context_creation_info *info;
+	struct lws_context *context;
+	struct lws_client_connect_info ccinfo = {0};
+	WS_PROTOCOLS_INIT(protocols, "orsa_ws", ws_callback, 1024);
 
-
+	
 }
