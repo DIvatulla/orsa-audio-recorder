@@ -30,9 +30,6 @@ int record(audio_buffer *mb, audio_buffer *rb, double border_vol, int sf_count);
 double measure_volume(audio_buffer *ab);
 int listen(audio_device *d);
 void write_file(unsigned char *b, int size, char *filename);
-int make_mp3_buffer(lame_mp3_buf **lbuf, audio_buffer *ab);
-int make_mp3_encoder(lame_enc **le);
-int make_mp3_decoder(mpeg_dec **mdmp3);
 void play_mp3(mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
 
 int main(int argc, char** argv)
@@ -44,12 +41,9 @@ int main(int argc, char** argv)
 	char **cli_arguments;
 
 	cli_arguments = parse_clargs(argc, argv);
-	if (cli_arguments == NULL){
+	if (cli_arguments != NULL){
 		free_clargs(cli_arguments);
-		return -1;
 	}
-	free_clargs(cli_arguments);
-	exit(0);
 
 	err = make_as(&settings, srate, ch, record_form);
 	if (err < 0){
@@ -192,7 +186,6 @@ int listen(audio_device *d)
 		}
 	}
 }
-
 
 void write_file(unsigned char *b, int size, char *filename)
 {
