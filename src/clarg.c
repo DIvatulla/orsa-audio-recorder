@@ -4,12 +4,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/*
 int copy_clarg(char *arg, char **res, cli_arguments flag)
 {
     res[flag] = (char*)calloc((strlen(arg)+1), sizeof(char));
     strcpy(res[flag], arg); 
 
     return 0;
+}
+*/
+
+int copy_clarg(char *arg, char **var)
+{
+    *var = (char*)calloc((strlen(arg)+1), sizeof(char));
+    strcpy(*var, arg);
 }
 
 char **parse_clargs(int argc, char **argv)
@@ -21,28 +29,28 @@ char **parse_clargs(int argc, char **argv)
 		switch (opt){
 		case 'i':
 			printf("Option i has arg: %s\n", optarg);
-            copy_clarg(optarg, res, INPUT_DEV);
+            copy_clarg(optarg, &res[INPUT_DEV]);
 			break;
 		case 'o':
 			printf("Option o has arg: %s\n", optarg);
-            copy_clarg(optarg, res, OUTPUT_DEV);
+            copy_clarg(optarg, &res[OUTPUT_DEV]);
 			break;
 		case 'h':
 			printf("Option h has arg: %s\n", optarg);
-            copy_clarg(optarg, res, WS_HOST);
+            copy_clarg(optarg, &res[WS_HOST]);
 			break;
 		case 'p':
 			printf("Option p has arg: %s\n", optarg);
-            copy_clarg(optarg, res, WS_PORT);
+            copy_clarg(optarg, &res[WS_PORT]);
 			break;
         case 'c':
-            copy_clarg(optarg, res, WS_CERT);
+            copy_clarg(optarg, &res[WS_CERT]);
             break;
 		case '?':
-			printf("Unknown option: %c\n", optopt);
-            break;
+			fprintf(stderr, "Unknown option: %c\n", optopt);
+            opt = ':';
 		case ':':
-			printf("Missing arg for %c\n", optopt);
+			fprintf(stderr, "Missing arg for %c\n", optopt);
 			free_clargs(res);
             res = NULL;
             goto end;

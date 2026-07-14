@@ -16,7 +16,8 @@ typedef enum {
 } cli_arguments;
 
 void free_clargs(char **clargs);
-int copy_clarg(char *arg, char **res, cli_arguments flag);
+//int copy_clarg(char *arg, char **res, cli_arguments flag);
+int copy_clarg(char *arg, char **var);
 char **parse_clargs(int argc, char **argv);
 
 

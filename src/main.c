@@ -10,6 +10,9 @@
 #ifndef RMS
 #define RMS 0
 #endif
+#ifndef WF 
+#define WF 0
+#endif
 
 static const unsigned int srate = 44100; //sample rate
 static const int ch = 1;
@@ -41,8 +44,8 @@ int main(int argc, char** argv)
 	char **cli_arguments;
 
 	cli_arguments = parse_clargs(argc, argv);
-	if (cli_arguments != NULL){
-		free_clargs(cli_arguments);
+	if (cli_arguments == NULL){
+		return -1;
 	}
 
 	err = make_as(&settings, srate, ch, record_form);
@@ -50,12 +53,22 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-	err = make_ad(&recdev, "plughw:2", settings, SND_PCM_STREAM_CAPTURE);
+	err = make_ad(
+		&recdev, 
+		(cli_arguments[INPUT_DEV] ? cli_arguments[INPUT_DEV] : "plughw:0"), 
+		settings, 
+		SND_PCM_STREAM_CAPTURE
+	);
 	if (err < 0){
 		return err;
 	}
 
-	err = make_ad(&playdev, "plughw:2", settings, SND_PCM_STREAM_PLAYBACK);
+	err = make_ad(
+		&playdev,
+		(cli_arguments[OUTPUT_DEV] ? cli_arguments[OUTPUT_DEV] : "plughw:0"),
+		settings, 
+		SND_PCM_STREAM_PLAYBACK
+	);
 	if (err < 0){
 		return err;
 	}
@@ -75,7 +88,7 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-#if RMS
+	#if RMS
 	record(mb, rb, 0.0f, 0);
 	bottomline_volume = measure_volume(mb);
 	if (bottomline_volume < 0) {
@@ -83,7 +96,7 @@ int main(int argc, char** argv)
 		return 1;
 	}
 	printf("bottom line volume %f\n", bottomline_volume);
-#endif
+	#endif
 	
 	mb->wi = 0;
 	record(mb, rb, bottomline_volume, calc_ab_size(recdev, am_secs, 3));
@@ -104,7 +117,10 @@ int main(int argc, char** argv)
 	play_mp3(mdmp3, lbmp3, rb);
 	free_ab(rb);
 
+	#if WF
 	write_file(lbmp3->buf, mp3_filesize, "./out.mp3");
+	#endif
+
 	free_lame_mp3_buf(lbmp3);
 	free_ad(playdev);
 	free_dec(mdmp3);
@@ -186,6 +202,8 @@ int listen(audio_device *d)
 			printf("silence\n");
 		}
 	}
+
+	return 0;
 }
 
 void write_file(unsigned char *b, int size, char *filename)

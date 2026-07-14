@@ -185,6 +185,7 @@ cleanup:
 void free_dec(mpeg_dec *dec)
 {
     mpg123_close(dec->handle);
+    mpg123_delete(dec->handle);
     free(dec);
 }
 
