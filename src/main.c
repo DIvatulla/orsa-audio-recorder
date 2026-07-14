@@ -14,11 +14,22 @@
 #define WF 0
 #endif
 
+#define MAX_PAYLOAD 5242880
+
 static const unsigned int srate = 44100; //sample rate
 static const int ch = 1;
 static const snd_pcm_format_t record_form = SND_PCM_FORMAT_S16_LE;
 static const int mb_dur = 30;
 static const int spr = 4096; //samples per read
+
+//global variables for threads
+int interrupted = 0;
+
+typedef struct{
+    unsigned char send_buf[LWS_PRE + MAX_PAYLOAD]; /* LWS_PRE bytes of headroom for framing */
+    size_t send_len;
+    int    pending_send;
+} ws_session_data;
 
 audio_device *recdev = NULL; //recording device 
 audio_settings *settings = NULL; //audio parameters
@@ -124,6 +135,7 @@ int main(int argc, char** argv)
 	free_lame_mp3_buf(lbmp3);
 	free_ad(playdev);
 	free_dec(mdmp3);
+	free_clargs(cli_arguments);
 
 	return 0;
 }
@@ -171,41 +183,6 @@ int record(audio_buffer *mb, audio_buffer *rb, double border_vol, int sf_count)
 	return 0;
 }
 
-int listen(audio_device *d)
-{
-	double curms;
-	int ret;
-
-	audio_buffer *rb = (audio_buffer*)calloc(1, sizeof(audio_buffer));
-	init_ab(rb, d, am_frames, 4096);
-
-	for (;;) {
-		rb->wi = 0;
-		ret = snd_pcm_readi(d->handle, rb->buf, snd_pcm_bytes_to_frames(recdev->handle, 4096));
-		if (ret == -EPIPE){
-			snd_pcm_prepare(d->handle);
-		}
-		else if (ret < 0){
-			fprintf(stderr, "Error while recording\n");	
-			break;
-		}
-
-		rb->wi += (int)snd_pcm_frames_to_bytes(d->handle, 4096);
-		rb->ri = 0;
-
-		curms = rms(rb, 4096);
-		printf("current rms - %f\n", curms);
-		if (curms >= (bottomline_volume + 10.0f)){
-			printf("sound\n");
-		}
-		else{
-			printf("silence\n");
-		}
-	}
-
-	return 0;
-}
-
 void write_file(unsigned char *b, int size, char *filename)
 {
 	FILE *f = fopen(filename, "wb");
@@ -248,4 +225,80 @@ void play_mp3(mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb)
 		snd_pcm_writei(playdev->handle, rb->buf, 4096);
 	}
 	snd_pcm_drain(playdev->handle);
+}
+
+
+
+static void sigint_handler(int sig){ interrupted = 1; }
+
+int queue_message(session_data *data, const char *msg)
+{
+    size_t len = strlen(msg);
+
+    if (len > MAX_PAYLOAD){
+        return -1;
+    }
+
+    memcpy(&data->send_buf[LWS_PRE], msg, len);
+    data->send_len = len;
+    data->pending_send = 1;
+
+    return 0;
+}
+
+int queue_message(ws_session_data *data, const char *msg)
+{
+    size_t len = strlen(msg);
+
+    if (len > MAX_PAYLOAD){
+        return -1;
+    }
+
+    memcpy(&data->send_buf[LWS_PRE], msg, len);
+    data->send_len = len;
+    data->pending_send = 1;
+
+    return 0;
+}
+
+int callback_ws(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
+{
+    ws_session_data *data = (ws_session_data*)user;
+
+    switch(reason){
+    case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+        lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char *)in : "(null)");
+        break;
+    case LWS_CALLBACK_CLIENT_ESTABLISHED:
+        lwsl_user("Connected to server.\n");
+        queue_message(data, "Hello from smart-speaker!");
+        lws_callback_on_writable(wsi);
+        break;
+    case LWS_CALLBACK_CLIENT_RECEIVE:
+        lwsl_hexdump_notice(in, len);
+        break;
+    case LWS_CALLBACK_CLIENT_WRITEABLE:
+        if (data->pending_send) {
+            int n = lws_write(wsi, &data->send_buf[LWS_PRE], data->send_len, LWS_WRITE_TEXT);
+
+            if (n < (int)data->send_len) {
+                lwsl_err("lws_write failed (%d)\n", n);
+                return -1;
+            }
+            data->pending_send = 0;
+            lwsl_user("Sent %d bytes.\n", n);
+		}
+		break;
+	case LWS_CALLBACK_CLIENT_CLOSED:
+		lwsl_user("Connection closed.\n");
+        interrupted = 1;	
+		break;
+	}
+       
+
+void *websocket_thread(void *arg)
+{
+	char **cli_arguments = (char**)arg;
+
+
 }

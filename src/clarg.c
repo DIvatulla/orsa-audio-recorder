@@ -4,16 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/*
-int copy_clarg(char *arg, char **res, cli_arguments flag)
-{
-    res[flag] = (char*)calloc((strlen(arg)+1), sizeof(char));
-    strcpy(res[flag], arg); 
-
-    return 0;
-}
-*/
-
 int copy_clarg(char *arg, char **var)
 {
     *var = (char*)calloc((strlen(arg)+1), sizeof(char));

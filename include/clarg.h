@@ -13,10 +13,9 @@ typedef enum {
     WS_PORT = 3,
     WS_CERT = 4,
     CLARG_COUNT = 5
-} cli_arguments;
+} clarg_enum;
 
 void free_clargs(char **clargs);
-//int copy_clarg(char *arg, char **res, cli_arguments flag);
 int copy_clarg(char *arg, char **var);
 char **parse_clargs(int argc, char **argv);
 
