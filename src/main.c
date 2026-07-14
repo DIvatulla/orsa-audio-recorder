@@ -107,6 +107,7 @@ int main(int argc, char** argv)
 	write_file(lbmp3->buf, mp3_filesize, "./out.mp3");
 	free_lame_mp3_buf(lbmp3);
 	free_ad(playdev);
+	free_dec(mdmp3);
 
 	return 0;
 }
