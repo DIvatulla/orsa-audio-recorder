@@ -92,7 +92,27 @@ int make_lws_info(
 	return 0;
 }
 
-int make_cc_info(struct lws_client_connect_info **cci)
+int make_cc_info(
+    struct lws_client_connect_info **cci,
+    struct lws_context *c,
+    char *h,
+    struct lws_protocols *p
+)
 {
-    *cci = (struct lws_client_connect_info*)calloc(1, sizeof(*cci));
+    int h_len = strlen(h) + 1;
+
+
+    *cci = (struct lws_client_connect_info*)calloc(1, sizeof(**cci));
+    (*cci)->context = c;
+
+    (*cci)->address = (char*)calloc(h_len, sizeof(char));
+    strcpy((&(*cci)->address), h);
+    
+    (*cci)->host = (char*)calloc(h_len, sizeof(char));
+    strcpy((&(*cci)->host), host);
+    
+    (*cci)->origin = (char*)calloc(h_len, sizeof(char));
+    strcpy((&(*cci)->origin), host);
+    
+    
 }
