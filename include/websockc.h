@@ -19,17 +19,4 @@ typedef struct{
     int    pending_send;
 } ws_session_data;
 
-#define WS_PROTOCOLS_INIT(NAME, PROTO, CALLBACK, RX_SIZE)\
-    struct lws_protocols NAME[] = {\
-        {\
-            PROTO,\
-            &CALLBACK,\
-            RX_SIZE,\
-            0,\
-            NULL,\
-            0\
-        },\
-        { NULL, NULL, 0, 0, 0, NULL, 0 }\ //protocol list terminator
-    }\
-
 #endif

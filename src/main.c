@@ -21,17 +21,19 @@ static const snd_pcm_format_t record_form = SND_PCM_FORMAT_S16_LE;
 static const int mb_dur = 30;
 static const int spr = 4096; //samples per read
 
+static const ws_protocol_name = "ws";
 
-int interrupted = 0;
+static audio_device *recdev = NULL; //recording device 
+static audio_settings *settings = NULL; //audio parameters
+static double bottomline_volume;
+static audio_device *playdev;
 
-audio_device *recdev = NULL; //recording device 
-audio_settings *settings = NULL; //audio parameters
-double bottomline_volume;
-audio_device *playdev;
+static lame_enc *lemp3;
+static lame_mp3_buf *lbmp3;
+static mpeg_dec *mdmp3;
 
-lame_enc *lemp3;
-lame_mp3_buf *lbmp3;
-mpeg_dec *mdmp3;
+static int interrupted = 0;
+static struct lws_protocols *protocols = NULL;
 
 int record(audio_buffer *mb, audio_buffer *rb, double border_vol, int sf_count);
 double measure_volume(audio_buffer *ab);
@@ -238,77 +240,37 @@ int queue_message(ws_session_data *d, const char *m)
     return 0;
 }
 
-int ws_callback(struct lws *wsi, enum lws_callback reason, void *user, void *in, size_t len)
-{
-    ws_session_data *d = (ws_session_data*)user;
-    
-    switch(reason){
-        case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-            lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char*)in : "(null)");
-            break;
-        case LWS_CALLBACK_CLIENT_ESTABLISHED:
-            lwsl_user("Connected to server\n");
-            break;
-        case LWS_CALLBACK_CLIENT_WRITEABLE:
-            if (d->pending_send){
-                int sent = lws_write(
-                    wsi, 
-                    &d->send_buf[LWS_PRE], 
-                    data->send_len,
-                    LWS_WRITE_TEXT
-                );
-
-                if (sent < (int)d->send_len){
-                    lwsl_err("lws_write failed (%d)\n", n);
-                    interrupted = 1;
-                    return -1;
-                }
-
-                d->pending_send = 0;
-                lwsl_user("Sent %d bytes.\n", n);
-            }
-            break;
-        case LWS_CALLBACK_CLIENT_CLOSED:
-            lwsl_user("Connection closed.\n");
-            interrupted = 1;
-            break;
-        default:
-            break;
-    }
-
-    return 0;
-}
-
-int init_info(
-	struct lws_context_creation_info **i, 
-	struct lws_protocols *p,
-	char *port)
-{
-	*i = (struct lws_context_creation_info*)calloc(
-		1, 
-		sizeof(struct lws_context_creation_info)
-	);
-	if ((*i) == NULL){
-		fprintf(stderr, "can't malloc info for context creation\n");
-		return -1;
-	}
-
-	i->port = CONTEXT_PORT_NO_LISTEN;
-	i->protocols = (*p);
-	i->gid = -1;
-	i->uid = -1;
-
-	return 0;
-}
-
 void *websocket_thread(void *arg)
 {
 	int err;
 	char **cli_arguments = (char**)arg;
 	struct lws_context_creation_info *info;
 	struct lws_context *context;
-	struct lws_client_connect_info ccinfo = {0};
-	WS_PROTOCOLS_INIT(protocols, "orsa_ws", ws_callback, 1024);
-
+	struct lws_client_connect_info *cc_info;
 	
+	err = make_proto_arr(
+		&protocols, 
+		ws_protocol_name, 
+		&ws_callback, 
+		MAX_PAYLOAD / 10
+	);
+	if (err < 0){
+		exit(-1);
+	}
+
+	memset(&info, 0, sizeof(info));
+	err = make_lws_info(&info, protocols);
+	if (err < 0){
+		exit(-2);
+	}
+
+	context = lws_create_context(info);
+	if (context == NULL){
+		exit(-3);
+	}
+
+	err = make_cc_info(cc_info);
+	if (err < 0){
+
+	}
 }
