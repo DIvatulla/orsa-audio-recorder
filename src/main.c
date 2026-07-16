@@ -234,9 +234,10 @@ int ws_callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, v
     return 0;
 }
 
-/*
+
 static void sigint_handler(int sig){ interrupted = 1; }
 
+/*
 int queue_message(ws_session_data *d, const char *m)
 {
     if (len > MAX_PAYLOAD){
