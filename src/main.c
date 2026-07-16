@@ -1,16 +1,13 @@
 #include "../include/wwaudio.h"
 #include "../include/wwmp3.h"
 #include "../include/clarg.h"
-#include "../include/websokc.h"
+#include "../include/websockc.h"
 #include <alsa/asoundlib.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
 #include <unistd.h>
 
-#ifndef RMS
-#define RMS 0
-#endif
 #ifndef WF 
 #define WF 0
 #endif
@@ -21,26 +18,22 @@ static const snd_pcm_format_t record_form = SND_PCM_FORMAT_S16_LE;
 static const int mb_dur = 30;
 static const int spr = 4096; //samples per read
 
-static const ws_protocol_name = "ws";
+static const char ws_protocol_name[] = "ws";
 
 static audio_device *recdev = NULL; //recording device 
 static audio_settings *settings = NULL; //audio parameters
-static double bottomline_volume;
 static audio_device *playdev;
 
 static lame_enc *lemp3;
 static lame_mp3_buf *lbmp3;
 static mpeg_dec *mdmp3;
 
-static int interrupted = 0;
-static struct lws_protocols *protocols = NULL;
+int interrupted = 0;
+static ws_proto_list protocols = NULL;
 
-int record(audio_buffer *mb, audio_buffer *rb, double border_vol, int sf_count);
-double measure_volume(audio_buffer *ab);
-int listen(audio_device *d);
+int record(audio_buffer *mb, audio_buffer *rb);
 void write_file(unsigned char *b, int size, char *filename);
 void play_mp3(mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
-int ws_callback(struct lws *wsi, enum lws_callback reason, void *user, void *in, size_t len)
 
 int main(int argc, char** argv)
 {   
@@ -54,6 +47,11 @@ int main(int argc, char** argv)
 	if (cli_arguments == NULL){
 		return -1;
 	}
+
+	make_proto_list(&protocols, "\0", &ws_callback, 2048);
+	printf("\n");
+	free(protocols);
+	exit(0);
 
 	err = make_as(&settings, srate, ch, record_form);
 	if (err < 0){
@@ -94,19 +92,9 @@ int main(int argc, char** argv)
 	if (err < 0){
 		return err;
 	}
-
-	#if RMS
-	record(mb, rb, 0.0f, 0);
-	bottomline_volume = measure_volume(mb);
-	if (bottomline_volume < 0) {
-		fprintf(stderr, "RMS calculation is -1.0");
-		return 1;
-	}
-	printf("bottom line volume %f\n", bottomline_volume);
-	#endif
 	
 	mb->wi = 0;
-	record(mb, rb, bottomline_volume, calc_ab_size(recdev, am_secs, 3));
+	record(mb, rb);
 	
 	err = make_lame_mp3_buf(&lbmp3, mb);
 	if (err < 0){
@@ -136,10 +124,8 @@ int main(int argc, char** argv)
 	return 0;
 }
 
-int record(audio_buffer *mb, audio_buffer *rb, double border_vol, int sf_count)
+int record(audio_buffer *mb, audio_buffer *rb)
 {
-	int old_sf_count = sf_count;
-	double frame_vol = 0.0f;
 	int ret;
 
 	do {
@@ -154,24 +140,6 @@ int record(audio_buffer *mb, audio_buffer *rb, double border_vol, int sf_count)
 
 		rb->wi += snd_pcm_bytes_to_frames(recdev->handle, rb->size);
 		push_ab(mb, rb);
-
-		if (old_sf_count > 0){
-			rb->ri = 0;
-			frame_vol = rms(rb, 4096);
-			printf("rms - %f\n", frame_vol);
-			if (frame_vol > (border_vol + 15.0f)) {
-				sf_count = old_sf_count;
-				printf("sound\n");
-			}
-			else{
-				sf_count -= 4096;
-				printf("silence\n");
-				printf("sf_count %d\n", sf_count);
-			}
-			if (sf_count < 0){
-				break;
-			}
-		}
 
 		printf("rec is going; mb->wi = %d, (mb->size - rb->size) = %d\n", mb->wi, mb->size - rb->size);
 	} while(mb->wi <= (mb->size - rb->size));
@@ -225,6 +193,48 @@ void play_mp3(mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb)
 
 //Websocket
 
+int ws_callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
+{
+    ws_session_data *d = (ws_session_data*)user;
+    
+    switch(reason){
+        case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+            lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char*)in : "(null)");
+            break;
+        case LWS_CALLBACK_CLIENT_ESTABLISHED:
+            lwsl_user("Connected to server\n");
+            break;
+        case LWS_CALLBACK_CLIENT_WRITEABLE:
+            if (d->pending_send){
+                int sent = lws_write(
+                    wsi, 
+                    &d->send_buf[LWS_PRE], 
+                    d->send_len,
+                    LWS_WRITE_TEXT
+                );
+
+                if (sent < (int)d->send_len){
+                    lwsl_err("lws_write failed (%d)\n", sent);
+                    interrupted = 1;
+                    return -1;
+                }
+
+                d->pending_send = 0;
+                lwsl_user("Sent %d bytes.\n", sent);
+            }
+            break;
+        case LWS_CALLBACK_CLIENT_CLOSED:
+            lwsl_user("Connection closed.\n");
+            interrupted = 1;
+            break;
+        default:
+            break;
+    }
+
+    return 0;
+}
+
+/*
 static void sigint_handler(int sig){ interrupted = 1; }
 
 int queue_message(ws_session_data *d, const char *m)
@@ -248,7 +258,7 @@ void *websocket_thread(void *arg)
 	struct lws_context *context;
 	struct lws_client_connect_info *cc_info;
 	
-	err = make_proto_arr(
+	err = make_proto_list(
 		&protocols, 
 		ws_protocol_name, 
 		&ws_callback, 
@@ -258,7 +268,6 @@ void *websocket_thread(void *arg)
 		exit(-1);
 	}
 
-	memset(&info, 0, sizeof(info));
 	err = make_lws_info(&info, protocols);
 	if (err < 0){
 		exit(-2);
@@ -274,3 +283,4 @@ void *websocket_thread(void *arg)
 
 	}
 }
+	*/

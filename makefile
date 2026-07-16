@@ -4,7 +4,7 @@ MDEF =
 
 SRC := $(wildcard src/*.c)
 OBJ := $(patsubst src/%.c,build/%.o,$(SRC))
-LIBS := -lasound -lm -lpthread -lmp3lame -lmpg123
+LIBS := -lasound -lm -lpthread -lmp3lame -lmpg123 -lwebsockets -lssl -lcrypto
 
 main: $(OBJ)
 	$(CC) $(CFLAGS) $(OBJ) $(MDEF) -o $@ $(LIBS)
