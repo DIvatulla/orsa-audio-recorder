@@ -15,7 +15,7 @@ char **parse_clargs(int argc, char **argv)
 	int opt;
     char **res = (char**)calloc(CLARG_COUNT, sizeof(char*));
 
-	while ((opt = getopt(argc, argv, ":i:o:h:p:c:")) != -1){
+	while ((opt = getopt(argc, argv, ":i:o:h:p:w:c:")) != -1){
 		switch (opt){
 		case 'i':
 			printf("Option i has arg: %s\n", optarg);
@@ -33,6 +33,10 @@ char **parse_clargs(int argc, char **argv)
 			printf("Option p has arg: %s\n", optarg);
             copy_clarg(optarg, &res[WS_PORT]);
 			break;
+        case 'l':
+            printf("Option w has arg: %s\n", optarg);
+            copy_clarg(optarg, &res[WS_PATH]);
+            break;
         case 'c':
             copy_clarg(optarg, &res[WS_CERT]);
             break;

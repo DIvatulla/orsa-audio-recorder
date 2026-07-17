@@ -11,8 +11,9 @@ typedef enum {
 	OUTPUT_DEV = 1,
 	WS_HOST = 2,
     WS_PORT = 3,
-    WS_CERT = 4,
-    CLARG_COUNT = 5
+    WS_PATH = 4,
+    WS_CERT = 5,
+    CLARG_COUNT = 6
 } clarg_enum;
 
 void free_clargs(char **clargs);

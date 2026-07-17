@@ -3,6 +3,14 @@
 #include <libwebsockets.h>
 #include "../include/websockc.h"
 
+#define BLOCK_SIGNAL(SIGNAL)\
+    do{\
+        sigset_t set;\
+	    sigemptyset(&set);\
+        sigaddset(&set, SIGNAL);\
+	    pthread_sigmask(SIG_BLOCK, &set, NULL);\
+    } while(0)
+
 /*
 item 0 of protocol list will carry direct pointer to stack allocated 
 constant in main file with ws protocol name
@@ -21,13 +29,11 @@ void init_proto_list(
 {
     pl[0]->name = proto_name;
     pl[0]->callback = callback;
-    pl[0]->per_session_data_size = sizeof(ws_session_data);
-    pl[0]->callback = callback;
-    pl[0]->per_session_data_size = sizeof(ws_session_data);
+    pl[0]->per_session_data_size = LWS_PRE;
     pl[0]->rx_buffer_size = rx_size;
     pl[0]->id = 0;
     pl[0]->user = 0;
-    pl[0]->tx_packet_size = 0; //0 == same as rx_buffer_size
+    pl[0]->tx_packet_size = 0; //0 means same as rx_buffer_size
 }
 
 int make_proto_list(
@@ -55,28 +61,97 @@ int make_proto_list(
         return -1;
     }
 
-    (*pl)[0]->name = (char*)calloc(strlen(proto_name)+1, sizeof(char));
-    if ((*pl)[0]->name == NULL){
-        fprintf(stderr, "can't malloc protocol name\n");
-        free_proto_list(*pl);
-        return -1;
-    }
-
     init_proto_list(*pl, proto_name, callback, rx_size);
-}
 
-void free_proto_list_item(struct lws_protocols *p)
-{
-    if (p != NULL){
-        free(p);
-    }
+    return 0;
 }
 
 void free_proto_list(ws_proto_list pl)
 {
     if (pl != NULL){
-        free_proto_list_item(pl[0]);
+        if (pl[0] != NULL){
+            free(pl[0]);
+        }
         free(pl);
     }
 }
 
+int make_context_creation_info(
+    struct lws_context_creation_info **info,
+    ws_proto_list pl)
+{
+    *info = (struct lws_context_creation_info*)calloc(
+        1, 
+        sizeof(struct lws_context_creation_info)
+    );
+    if ((*info) == NULL){
+        fprintf(stderr, "can't malloc lws context creation info\n");
+        return -1;
+    }
+    
+    (*info)->port = CONTEXT_PORT_NO_LISTEN;
+    (*info)->pprotocols = (const struct lws_protocols**)pl;
+    (*info)->gid = -1;
+    (*info)->uid = -1;
+
+    return 0;
+}
+
+void free_context_creation_info(struct lws_context_creation_info *info)
+{
+    free(info);
+}
+
+int make_client_connection_info(
+    struct lws_client_connect_info **cc_info,
+    struct lws_context *context,
+    ws_proto_list pl,
+    char *address,
+    int port,
+    char *path,
+    char *host_header,
+    char *origin_header)
+{
+    *cc_info = (struct lws_client_connect_info*)calloc(
+        1, 
+        sizeof(struct lws_client_connect_info)
+    );
+    if ((*cc_info) == NULL){
+        fprintf(stderr, "can't malloc lws client connect info\n");
+        return -1;
+    }
+
+    (*cc_info)->address = (const char*)calloc(strlen(address)+1, sizeof(char));
+    (*cc_info)->path = (const char*)calloc(strlen(path)+1, sizeof(char));
+    (*cc_info)->host = (const char*)calloc(strlen(host_header)+1, sizeof(char));
+    (*cc_info)->origin = (const char*)calloc(strlen(origin_header)+1, sizeof(char));
+    (*cc_info)->protocol = (const char*)calloc(strlen(pl[0]->name)+1, sizeof(char));
+
+    if ((!((*cc_info)->address)) || 
+    (!((*cc_info)->path)) || 
+    (!((*cc_info)->host)) ||
+    (!((*cc_info)->origin)) ||
+    (!((*cc_info)->protocol))){
+        fprintf(stderr, "can't malloc lws client connection info parameters");
+        free(*cc_info);
+        return -1;
+    }
+
+    strcpy((char*)(*cc_info)->address, address);
+	(*cc_info)->port = port;
+	(*cc_info)->ssl_connection = 0;
+    strcpy((char*)(*cc_info)->path, path);
+	strcpy((char*)(*cc_info)->host, host_header);
+	strcpy((char*)(*cc_info)->origin, origin_header);
+    strcpy((char*)(*cc_info)->protocol, pl[0]->name);
+}
+
+void free_client_connection_info(struct lws_client_connect_info *cc_info)
+{
+    cc_info->address ? free((char*)cc_info->address) : 1;
+    cc_info->path ? free((char*)cc_info->path) : 1;
+    cc_info->host ? free((char*)cc_info->host) : 1;
+    cc_info->origin ? free((char*)cc_info->origin) : 1;
+    cc_info->address ? free((char*)cc_info->address) : 1;
+    free(cc_info);
+}
