@@ -148,10 +148,21 @@ int make_client_connection_info(
 
 void free_client_connection_info(struct lws_client_connect_info *cc_info)
 {
-    cc_info->address ? free((char*)cc_info->address) : 1;
-    cc_info->path ? free((char*)cc_info->path) : 1;
-    cc_info->host ? free((char*)cc_info->host) : 1;
-    cc_info->origin ? free((char*)cc_info->origin) : 1;
-    cc_info->address ? free((char*)cc_info->address) : 1;
+    if (cc_info->address != NULL){
+        free((char*)cc_info->address);
+    }
+    if (cc_info->path != NULL){
+        free((char*)cc_info->path);
+    }
+    if (cc_info->host != NULL){
+        free((char*)cc_info->host);
+    }
+    if (cc_info->origin != NULL){
+        free((char*)cc_info->origin);
+    }
+    if (cc_info->protocol != NULL){
+        free((char*)cc_info->protocol);
+    }
+
     free(cc_info);
 }
