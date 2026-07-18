@@ -13,11 +13,12 @@
 
 #define WS_DEFAULT_PORT 80
 
-typedef struct{
-    unsigned char send_buf[LWS_PRE + MAX_PAYLOAD]; /* LWS_PRE bytes of headroom for framing */
+/*typedef struct{
+    unsigned char send_buf[LWS_PRE + MAX_PAYLOAD]; //LWS_PRE bytes of headroom for framing
     size_t send_len;
     int    pending_send;
-} ws_session_data;
+} ws_session_data;*/
+
 typedef struct lws_protocols **ws_proto_list;
 
 void init_proto_list(
@@ -30,6 +31,7 @@ void init_proto_list(
         void *in, 
         size_t len
     ),
+    int per_session_data_size,
     int rx_size);
 
 int make_proto_list(
@@ -42,6 +44,7 @@ int make_proto_list(
         void *in, 
         size_t len
     ),
+    int per_session_data_size,
     int rx_size);
 
 void free_proto_list(ws_proto_list pl);

@@ -62,11 +62,12 @@ void init_proto_list(
         void *in, 
         size_t len
     ),
+    int per_session_data_size,
     int rx_size)
 {
     pl[0]->name = proto_name;
     pl[0]->callback = callback;
-    pl[0]->per_session_data_size = LWS_PRE;
+    pl[0]->per_session_data_size = per_session_data_size;
     pl[0]->rx_buffer_size = rx_size;
     pl[0]->id = 0;
     pl[0]->user = 0;
@@ -83,6 +84,7 @@ int make_proto_list(
         void *in, 
         size_t len
     ),
+    int per_session_data_size,
     int rx_size)
 { 
     *pl = (ws_proto_list)calloc(2, sizeof(struct lws_protocols*));
@@ -98,7 +100,7 @@ int make_proto_list(
         return -1;
     }
 
-    init_proto_list(*pl, proto_name, callback, rx_size);
+    init_proto_list(*pl, proto_name, callback, per_session_data_size, rx_size);
 
     return 0;
 }
@@ -194,6 +196,8 @@ int make_client_connection_info(
 
     init_client_connection_info(*cc_info, context, pl, address,
         port, path, host_header, origin_header);
+
+    return 0;
 }
 
 void free_client_connection_info(struct lws_client_connect_info *cc_info)

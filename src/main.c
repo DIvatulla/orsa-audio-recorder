@@ -24,12 +24,11 @@ static audio_settings *settings = NULL;
 static audio_device *playdev = NULL;
 
 static lame_enc *lemp3;
-static lame_mp3_buf *lbmp3;
+//static lame_mp3_buf *lbmp3;
 static mpeg_dec *mdmp3;
 
 volatile sig_atomic_t ws_thread_kill_flag = 0;
 volatile sig_atomic_t ws_pending_send = 0;
-static int ws_thread_kill_result = 0;
 
 static ws_proto_list protocols = NULL;
 static struct lws_context_creation_info *info = NULL;
@@ -46,9 +45,9 @@ int ws_callback(
     void *user, 
     void *in, 
     size_t len
-){
-	return 1;
-}
+);
+
+lame_mp3_buf lbmp3 = {0};
 
 int main(int argc, char** argv)
 {   
@@ -63,7 +62,11 @@ int main(int argc, char** argv)
 		return -1;
 	}
 
-	make_proto_list(&protocols, "\0", &ws_callback, 2048);
+	lbmp3.buf = (unsigned char*)calloc(5242880, sizeof(char));
+	lbmp3.size = 5242880;
+	lbmp3.wi = 0;
+
+	make_proto_list(&protocols, "\0", &ws_callback, 0, MAX_PAYLOAD / 10);
 	make_context_creation_info(&info, protocols);
 	context = lws_create_context(info);
 	if (!context) {
@@ -75,18 +78,27 @@ int main(int argc, char** argv)
 		protocols,
 		(cli_arguments[WS_HOST] ? cli_arguments[WS_HOST] : "127.0.0.1"),
 		(cli_arguments[WS_PORT] ? atoi(cli_arguments[WS_PORT]) : 9000),
-		(cli_arguments[WS_PATH] ? cli_arguments[WS_PATH] : "/ws/connection"),
+		(cli_arguments[WS_PATH] ? cli_arguments[WS_PATH] : "/"),
 		"\0",
 		"\0"
 	);
+
+	if (!lws_client_connect_via_info(cc_info)) {
+		fprintf(stderr, "lws_client_connect_via_info failed\n");
+		lws_context_destroy(context);
+		return -1;
+	}
+
+	for (;;){
+		lws_service(context, 100);
+	}
 
 	free_proto_list(protocols);
 	free_context_creation_info(info);
 	lws_context_destroy(context);
 	free_client_connection_info(cc_info);
-	
-	exit(0);
 
+	/*
 	err = make_as(&settings, srate, ch, record_form);
 	if (err < 0){
 		return err;
@@ -136,6 +148,7 @@ int main(int argc, char** argv)
 	if (err < 0){
 		return -1;
 	}
+	*/
 	
 	/*mb->wi = 0;
 	record(mb, rb);*/
@@ -145,9 +158,7 @@ int main(int argc, char** argv)
 	free_ad(recdev);
 	free_as(settings);
 	free_enc(lemp3);
-	
 
-	
 	decode_mp3_settings(mdmp3, lbmp3);
 	play_mp3(mdmp3, lbmp3, rb);
 	free_ab(rb);
@@ -213,4 +224,41 @@ void play_mp3(mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb)
 		snd_pcm_writei(playdev->handle, rb->buf, 4096);
 	}
 	snd_pcm_drain(playdev->handle);
+}
+
+int ws_callback(
+    struct lws *wsi, 
+    enum lws_callback_reasons reason, 
+    void *user, 
+    void *in, 
+    size_t len
+){
+	switch(reason){
+	case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+		lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char *)in : "(null)");
+		break;	
+	case LWS_CALLBACK_CLIENT_ESTABLISHED:
+		lwsl_user("Connected to server.\n");
+		break;
+	case LWS_CALLBACK_CLIENT_RECEIVE:
+		lbmp3.wi += len;
+		memcpy(lbmp3.buf, in, len);
+
+		printf("remaining packet size - %ld, lbmp3.wi - %d\n", lws_remaining_packet_payload(wsi), lbmp3.wi);
+
+		if ((!lws_remaining_packet_payload(wsi)) && lws_is_final_fragment(wsi)){
+			write_file(lbmp3.buf, lbmp3.wi, "websocket_file.mp3");
+			memset(lbmp3.buf, 0, lbmp3.size * sizeof(char));
+		}
+		break;
+    case LWS_CALLBACK_CLIENT_WRITEABLE:
+		break;
+	case LWS_CALLBACK_CLIENT_CLOSED:
+		lwsl_user("Connection closed.\n");
+		break;
+	default:
+		break;
+    }
+ 
+    return 0;
 }

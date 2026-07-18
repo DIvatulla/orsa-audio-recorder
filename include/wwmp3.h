@@ -16,6 +16,7 @@ typedef struct{
 typedef struct {
     unsigned char *buf;
     int size;
+    int wi;
 } lame_mp3_buf;
 
 typedef enum {
