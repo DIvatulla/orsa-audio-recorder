@@ -139,6 +139,26 @@ void free_context_creation_info(struct lws_context_creation_info *info)
     free(info);
 }
 
+void init_client_connection_info(
+    struct lws_client_connect_info *cc_info,
+    struct lws_context *context,
+    ws_proto_list pl,
+    char *address,
+    int port,
+    char *path,
+    char *host_header,
+    char *origin_header)
+{
+    cc_info->context = context;
+    cc_info->port = port;
+	cc_info->ssl_connection = 0;
+    strcpy((char*)cc_info->address, address);
+    strcpy((char*)cc_info->path, path);
+    strcpy((char*)cc_info->host, host_header);
+    strcpy((char*)cc_info->origin, origin_header);
+	strcpy((char*)cc_info->protocol, pl[0]->name);
+}
+
 int make_client_connection_info(
     struct lws_client_connect_info **cc_info,
     struct lws_context *context,
@@ -149,7 +169,7 @@ int make_client_connection_info(
     char *host_header,
     char *origin_header)
 {
-    int i = 0;
+    int err = 0;
 
     *cc_info = (struct lws_client_connect_info*)calloc(
         1, 

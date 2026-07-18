@@ -40,14 +40,6 @@ int record(audio_buffer *mb, audio_buffer *rb);
 void write_file(unsigned char *b, int size, char *filename);
 void play_mp3(mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
 
-/*int ws_callback(
-    struct lws *wsi, 
-    enum lws_callback_reasons reason, 
-    void *user, 
-    void *in, 
-    size_t len
-);*/
-
 int ws_callback(
     struct lws *wsi, 
     enum lws_callback_reasons reason, 
@@ -82,7 +74,7 @@ int main(int argc, char** argv)
 		context, 
 		protocols,
 		(cli_arguments[WS_HOST] ? cli_arguments[WS_HOST] : "127.0.0.1"),
-		(cli_arguments[WS_PORT] ? cli_arguments[WS_PORT] : "9000"),
+		(cli_arguments[WS_PORT] ? atoi(cli_arguments[WS_PORT]) : 9000),
 		(cli_arguments[WS_PATH] ? cli_arguments[WS_PATH] : "/ws/connection"),
 		"\0",
 		"\0"
@@ -222,85 +214,3 @@ void play_mp3(mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb)
 	}
 	snd_pcm_drain(playdev->handle);
 }
-
-//Websocket
-
-/*
-int ws_callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len)
-{
-    switch(reason){
-        case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-            lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char*)in : "(null)");
-            break;
-        case LWS_CALLBACK_CLIENT_ESTABLISHED:
-            lwsl_user("Connected to server\n");
-            break;
-        case LWS_CALLBACK_CLIENT_WRITEABLE:
-            if (d->pending_send){
-                int sent = lws_write(
-                    wsi, 
-                    &d->send_buf[LWS_PRE], 
-                    d->send_len,
-                    LWS_WRITE_TEXT
-                );
-
-                if (sent < (int)d->send_len){
-                    lwsl_err("lws_write failed (%d)\n", sent);
-                    interrupted = 1;
-                    return -1;
-                }
-
-                d->pending_send = 0;
-                lwsl_user("Sent %d bytes.\n", sent);
-            }
-            break;
-        case LWS_CALLBACK_CLIENT_CLOSED:
-            lwsl_user("Connection closed.\n");
-            interrupted = 1;
-            break;
-        default:
-            break;
-    }
-
-    return 0;
-}
-
-static void sigint_handler(int sig){
-	ws_kill_flag = 1;
-	if (context){
-		lws_cancel_service(context);
-	} 
-}
-
-void *websocket_thread(void *arg)
-{
-	BLOCK_SIGNAL(SIGINT);
-	int err;
-	char **cli_arguments = (char**)arg;
-	
-	err = make_proto_list(
-		&protocols, 
-		ws_protocol_name, 
-		&ws_callback, 
-		MAX_PAYLOAD / 10
-	);
-	if (err < 0){
-		exit(-1);
-	}
-
-	err = make_lws_info(&info, protocols);
-	if (err < 0){
-		exit(-2);
-	}
-
-	context = lws_create_context(info);
-	if (context == NULL){
-		exit(-3);
-	}
-
-	err = make_cc_info(cc_info);
-	if (err < 0){
-
-	}
-}
-*/
