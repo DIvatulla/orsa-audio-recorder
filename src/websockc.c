@@ -11,6 +11,43 @@
 	    pthread_sigmask(SIG_BLOCK, &set, NULL);\
     } while(0)
 
+
+int malloc_str_fields(int amount, ...)
+{
+    int i, err, field_size;
+    char **field = NULL;
+    va_list list;
+
+    va_start(list, amount);
+    for (i = err = 0; i < amount; i++){
+        field = va_arg(list, char**);
+        field_size = va_arg(list, int);
+
+        *field = (char*)calloc(field_size, sizeof(char));
+        if ((*field) == NULL){
+            va_end(list);
+            return -1;
+        }
+    }
+    va_end(list);
+
+    return 0;
+}
+
+void free_str_fields(int amount, ...)
+{
+    int i = 0;
+    char **field = NULL;
+    va_list list;
+
+    va_start(list, amount);
+    for (i = 0; i < amount; i++){
+        field = va_arg(list, char**);
+        free(*field);
+    }
+    va_end(list);
+}
+
 /*
 item 0 of protocol list will carry direct pointer to stack allocated 
 constant in main file with ws protocol name
@@ -112,6 +149,8 @@ int make_client_connection_info(
     char *host_header,
     char *origin_header)
 {
+    int i = 0;
+
     *cc_info = (struct lws_client_connect_info*)calloc(
         1, 
         sizeof(struct lws_client_connect_info)
@@ -121,48 +160,25 @@ int make_client_connection_info(
         return -1;
     }
 
-    (*cc_info)->address = (const char*)calloc(strlen(address)+1, sizeof(char));
-    (*cc_info)->path = (const char*)calloc(strlen(path)+1, sizeof(char));
-    (*cc_info)->host = (const char*)calloc(strlen(host_header)+1, sizeof(char));
-    (*cc_info)->origin = (const char*)calloc(strlen(origin_header)+1, sizeof(char));
-    (*cc_info)->protocol = (const char*)calloc(strlen(pl[0]->name)+1, sizeof(char));
-
-    if ((!((*cc_info)->address)) || 
-    (!((*cc_info)->path)) || 
-    (!((*cc_info)->host)) ||
-    (!((*cc_info)->origin)) ||
-    (!((*cc_info)->protocol))){
-        fprintf(stderr, "can't malloc lws client connection info parameters");
-        free(*cc_info);
-        return -1;
+    err = malloc_str_fields(5, 
+        &(*cc_info)->address, strlen(address) + 1,
+        &(*cc_info)->path, strlen(path) + 1,
+        &(*cc_info)->host, strlen(host_header) + 1,
+        &(*cc_info)->origin, strlen(origin_header) + 1,
+        &(*cc_info)->protocol, strlen(pl[0]->name) + 1
+    );
+    if (err < 0){
+        fprintf(stderr, "can't malloc string fields of client connect info\n");
+        free_client_connection_info(*cc_info);
     }
 
-    strcpy((char*)(*cc_info)->address, address);
-	(*cc_info)->port = port;
-	(*cc_info)->ssl_connection = 0;
-    strcpy((char*)(*cc_info)->path, path);
-	strcpy((char*)(*cc_info)->host, host_header);
-	strcpy((char*)(*cc_info)->origin, origin_header);
-    strcpy((char*)(*cc_info)->protocol, pl[0]->name);
+    init_client_connection_info(*cc_info, context, pl, address,
+        port, path, host_header, origin_header);
 }
 
 void free_client_connection_info(struct lws_client_connect_info *cc_info)
 {
-    if (cc_info->address != NULL){
-        free((char*)cc_info->address);
-    }
-    if (cc_info->path != NULL){
-        free((char*)cc_info->path);
-    }
-    if (cc_info->host != NULL){
-        free((char*)cc_info->host);
-    }
-    if (cc_info->origin != NULL){
-        free((char*)cc_info->origin);
-    }
-    if (cc_info->protocol != NULL){
-        free((char*)cc_info->protocol);
-    }
-
+    free_str_fields(5, &cc_info->address, &cc_info->path, &cc_info->host,
+        &cc_info->origin, &cc_info->protocol);
     free(cc_info);
 }
