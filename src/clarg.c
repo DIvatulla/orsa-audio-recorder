@@ -33,7 +33,7 @@ char **parse_clargs(int argc, char **argv)
 			printf("Option p has arg: %s\n", optarg);
             copy_clarg(optarg, &res[WS_PORT]);
 			break;
-        case 'l':
+        case 'w':
             printf("Option w has arg: %s\n", optarg);
             copy_clarg(optarg, &res[WS_PATH]);
             break;
