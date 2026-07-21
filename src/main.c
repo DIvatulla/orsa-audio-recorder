@@ -202,6 +202,7 @@ int main(int argc, char** argv)
 	free_context_creation_info(info);
 	free_client_connection_info(cc_info);
 	free(wsd.buf);
+	snd_config_update_free_global();
 
 	return 0;
 }
