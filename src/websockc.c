@@ -43,9 +43,17 @@ void free_str_fields(int amount, ...)
     va_start(list, amount);
     for (i = 0; i < amount; i++){
         field = va_arg(list, char**);
-        free(*field);
+        if (field){
+            free(field);
+        }
     }
     va_end(list);
+}
+
+void clear_ws_session_data(ws_session_data *wsd)
+{
+    wsd->wi = 0;
+    memset(wsd->buf, 0, wsd->size);
 }
 
 /*
