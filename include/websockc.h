@@ -14,11 +14,13 @@
 #define WS_DEFAULT_PORT 80
 
 typedef struct{
-    unsigned char buf[LWS_PRE + MAX_PAYLOAD]; //LWS_PRE bytes of headroom for framing
+    unsigned char *buf; //LWS_PRE bytes of headroom for framing + MAX_PAYLOAD
     size_t size;
+    int wi;
 } ws_session_data;
-
 typedef struct lws_protocols **ws_proto_list;
+
+void clear_ws_session_data(ws_session_data *wsd);
 
 void init_proto_list(
     ws_proto_list pl,

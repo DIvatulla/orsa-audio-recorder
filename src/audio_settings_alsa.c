@@ -16,7 +16,7 @@ int init_as(audio_settings *s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
 	}
 	s->rate = r;
 
-	if (ch > 1){
+	if (ch < 1){
 		fprintf(stderr, "Amount of channels is less than one\n");
 		return -1;
 	}

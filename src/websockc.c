@@ -43,7 +43,7 @@ void free_str_fields(int amount, ...)
     va_start(list, amount);
     for (i = 0; i < amount; i++){
         field = va_arg(list, char**);
-        if (field){
+        if (field != NULL){
             free(field);
         }
     }

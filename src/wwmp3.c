@@ -28,9 +28,9 @@ int init_enc(lame_enc *enc, audio_device *d, int br, mp3_quality q)
     return 0;
 }
 
-int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab, int *fsz)
+int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab)
 {
-    *fsz = lame_encode_buffer(
+    int fsz = lame_encode_buffer(
         enc->lame,
         (short*)ab->buf,
         NULL,
@@ -39,10 +39,12 @@ int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab
         lbmp3->size
     );
 
-    if ((*fsz) < 0) {
+    if (fsz < 0) {
         fprintf(stderr, "Encoding error:\n");
         return -1;
     }
+
+    lbmp3->wi = fsz;
 
     return 0;
 }
@@ -80,6 +82,7 @@ int init_lame_mp3_buf(lame_mp3_buf *lbmp3, audio_buffer *ab)
         fprintf(stderr, "Can't malloc lame_mp3_buf->buf\n");
         return -1;
     }
+    lbmp3->wi = 0;
 
     return 0;
 }
