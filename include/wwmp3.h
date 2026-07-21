@@ -1,3 +1,6 @@
+#ifndef WWMP3_H
+#define WWMP3_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <lame/lame.h>
@@ -13,6 +16,7 @@ typedef struct{
 typedef struct {
     unsigned char *buf;
     int size;
+    int wi;
 } lame_mp3_buf;
 
 typedef enum {
@@ -31,13 +35,17 @@ typedef struct{
 } mpeg_dec;
 
 int init_enc(lame_enc *enc, audio_device *d, int br, mp3_quality q);
-int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab, int *fsz);
+int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab);
+int make_enc(lame_enc **enc, audio_device *recdev, mp3_quality q);
 void free_enc(lame_enc *enc);
 
 int init_lame_mp3_buf(lame_mp3_buf *lbmp3, audio_buffer *ab);
+int make_lame_mp3_buf(lame_mp3_buf **lbmp3, audio_buffer *ab);
 void free_lame_mp3_buf(lame_mp3_buf *lbmp3);
 
-//int pcm_to_mp3(audio_buffer *ab, audio_device *d);
-
 int init_dec(mpeg_dec *dec);
+int make_dec(mpeg_dec **dec);
 int decode_mp3_settings(mpeg_dec *dec, lame_mp3_buf *lbmp3);
+void free_dec(mpeg_dec *dec);
+
+#endif

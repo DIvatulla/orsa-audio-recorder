@@ -4,11 +4,11 @@
 #include <stdlib.h>
 #include <lame/lame.h>
 
-
 int init_enc(lame_enc *enc, audio_device *d, int br, mp3_quality q)
 {
     unsigned int rate = 0;
     unsigned int channels = 0;
+
     snd_pcm_hw_params_get_rate(d->params, &rate, 0);
     snd_pcm_hw_params_get_channels(d->params, &channels);
     
@@ -28,9 +28,9 @@ int init_enc(lame_enc *enc, audio_device *d, int br, mp3_quality q)
     return 0;
 }
 
-int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab, int *fsz)
+int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab)
 {
-    *fsz = lame_encode_buffer(
+    int fsz = lame_encode_buffer(
         enc->lame,
         (short*)ab->buf,
         NULL,
@@ -39,12 +39,33 @@ int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab
         lbmp3->size
     );
 
-    if ((*fsz) < 0) {
+    if (fsz < 0) {
         fprintf(stderr, "Encoding error:\n");
         return -1;
     }
 
+    lbmp3->wi = fsz;
+
     return 0;
+}
+
+int make_enc(lame_enc **enc, audio_device *recdev, mp3_quality q)
+{
+    int err;
+
+    *enc = (lame_enc*)calloc(1, sizeof(lame_enc));
+	if ((*enc) == NULL){
+		fprintf(stderr, "Can't malloc lame_enc\n");
+		return -1;
+	}
+
+	err = init_enc(*enc, recdev, 128, q);
+    if (err < 0){
+        free_enc(*enc);
+        return -1;
+    }
+
+	return 0;
 }
 
 void free_enc(lame_enc *enc)
@@ -57,7 +78,31 @@ int init_lame_mp3_buf(lame_mp3_buf *lbmp3, audio_buffer *ab)
 {
     lbmp3->size = ab->size + ((ab->size / 4) + 1) + 7200;
     lbmp3->buf = (unsigned char*)calloc(lbmp3->size, sizeof(char));
-    if (!lbmp3){
+    if (lbmp3 == NULL){
+        fprintf(stderr, "Can't malloc lame_mp3_buf->buf\n");
+        return -1;
+    }
+    lbmp3->wi = 0;
+
+    return 0;
+}
+
+int make_lame_mp3_buf(lame_mp3_buf **lbmp3, audio_buffer *ab)
+{
+    int err;
+
+    *lbmp3 = (lame_mp3_buf*)calloc(1, sizeof(lame_mp3_buf));
+    if ((*lbmp3) == NULL){
+        fprintf(stderr, "Can't malloc lame_mp3_buf struct\n");
+        return -1;
+    }
+
+    (*lbmp3)->buf = NULL;
+    (*lbmp3)->size = 0;
+
+    err = init_lame_mp3_buf(*lbmp3, ab);
+    if (err < 0){
+        free_lame_mp3_buf(*lbmp3);
         return -1;
     }
 
@@ -66,7 +111,9 @@ int init_lame_mp3_buf(lame_mp3_buf *lbmp3, audio_buffer *ab)
 
 void free_lame_mp3_buf(lame_mp3_buf *lbmp3)
 {
-    free(lbmp3->buf);
+    if (lbmp3->buf != NULL){
+        free(lbmp3->buf);
+    }
     free(lbmp3);
 }
 
@@ -85,6 +132,23 @@ int init_dec(mpeg_dec *dec)
     dec->pcm_format = MPG123_ENC_16; //0000 0000 0100 0000
 
     return 0;
+}
+
+int make_dec(mpeg_dec **dec)
+{
+    int err;
+
+	*dec = (mpeg_dec*)calloc(1, sizeof(mpeg_dec));
+	if ((*dec) == NULL) {
+		fprintf(stderr, "can't malloc mpg123 decoder\n");
+		return -1;
+	}
+	err = init_dec(*dec);
+	if (err < 0){
+		return err;
+	}
+
+	return 0;
 }
 
 int decode_mp3_settings(mpeg_dec *dec, lame_mp3_buf *lbmp3)
@@ -119,5 +183,12 @@ cleanup:
     mpg123_close(dec->handle);
 
     return res;
+}
+
+void free_dec(mpeg_dec *dec)
+{
+    mpg123_close(dec->handle);
+    mpg123_delete(dec->handle);
+    free(dec);
 }
 
