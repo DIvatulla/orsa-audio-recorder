@@ -34,9 +34,14 @@ typedef struct{
     int pcm_format; //mpg123_enc_enum type
 } mpeg_dec;
 
-int init_enc(lame_enc *enc, audio_device *d, int br, mp3_quality q);
-int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab);
-int make_enc(lame_enc **enc, audio_device *recdev, mp3_quality q);
+int init_enc(lame_enc *enc,
+    unsigned int sr,
+    unsigned int ch,
+    unsigned int br,
+    mp3_quality q
+);
+int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_buffer *ab);
+int make_enc(lame_enc **enc, int sr, int ch, mp3_quality q);
 void free_enc(lame_enc *enc);
 
 int init_lame_mp3_buf(lame_mp3_buf *lbmp3, audio_buffer *ab);

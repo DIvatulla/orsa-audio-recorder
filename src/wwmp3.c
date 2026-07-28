@@ -4,17 +4,15 @@
 #include <stdlib.h>
 #include <lame/lame.h>
 
-int init_enc(lame_enc *enc, audio_device *d, int br, mp3_quality q)
-{
-    unsigned int rate = 0;
-    unsigned int channels = 0;
-
-    snd_pcm_hw_params_get_rate(d->params, &rate, 0);
-    snd_pcm_hw_params_get_channels(d->params, &channels);
-    
+int init_enc(lame_enc *enc,
+    unsigned int sr,
+    unsigned int ch,
+    unsigned int br,
+    mp3_quality q)
+{   
     enc->lame = lame_init();
-    lame_set_in_samplerate(enc->lame, rate);
-    lame_set_num_channels(enc->lame, channels);
+    lame_set_in_samplerate(enc->lame, sr);
+    lame_set_num_channels(enc->lame, ch);
     lame_set_brate(enc->lame, br);
 
     if (lame_init_params(enc->lame) < 0) {
@@ -28,16 +26,33 @@ int init_enc(lame_enc *enc, audio_device *d, int br, mp3_quality q)
     return 0;
 }
 
-int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab)
+int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_buffer *ab)
 {
-    int fsz = lame_encode_buffer(
-        enc->lame,
-        (short*)ab->buf,
-        NULL,
-        snd_pcm_bytes_to_samples(d->handle, ab->wi),
-        lbmp3->buf,
-        lbmp3->size
-    );
+    int fsz = 0;
+    
+    if (ab->channels == 1){
+        fsz = lame_encode_buffer_ieee_float(
+            enc->lame,
+            (float*)ab->buf,
+            NULL,
+            get_cur_frame_size_ab(ab),
+            lbmp3->buf,
+            lbmp3->size
+        );
+    }
+    else if (ab->channels == 2){
+        fsz = lame_encode_buffer_interleaved_ieee_float(
+            enc->lame,
+            (float*)ab->buf,
+            get_cur_frame_size_ab(ab),
+            lbmp3->buf,
+            lbmp3->size
+        );
+    }
+    else{
+        fprintf(stderr, "Amount of channels %d is unsupported\n", ab->channels);
+        return -1;
+    }
 
     if (fsz < 0) {
         fprintf(stderr, "Encoding error:\n");
@@ -49,7 +64,7 @@ int encode(lame_enc *enc, lame_mp3_buf *lbmp3, audio_device *d, audio_buffer *ab
     return 0;
 }
 
-int make_enc(lame_enc **enc, audio_device *recdev, mp3_quality q)
+int make_enc(lame_enc **enc, int sr, int ch, mp3_quality q)
 {
     int err;
 
@@ -59,7 +74,7 @@ int make_enc(lame_enc **enc, audio_device *recdev, mp3_quality q)
 		return -1;
 	}
 
-	err = init_enc(*enc, recdev, 128, q);
+	err = init_enc(*enc, sr, ch, 128, q);
     if (err < 0){
         free_enc(*enc);
         return -1;
@@ -70,19 +85,21 @@ int make_enc(lame_enc **enc, audio_device *recdev, mp3_quality q)
 
 void free_enc(lame_enc *enc)
 {
-    lame_close(enc->lame);
+    enc->lame ? lame_close(enc->lame) : 0;
     free(enc);
 }
 
+
 int init_lame_mp3_buf(lame_mp3_buf *lbmp3, audio_buffer *ab)
 {
-    lbmp3->size = ab->size + ((ab->size / 4) + 1) + 7200;
+    unsigned int framelen = get_frame_size_ab(ab);
+
+    lbmp3->size = (framelen / 4) + framelen + 7200;
     lbmp3->buf = (unsigned char*)calloc(lbmp3->size, sizeof(char));
     if (lbmp3 == NULL){
         fprintf(stderr, "Can't malloc lame_mp3_buf->buf\n");
         return -1;
     }
-    lbmp3->wi = 0;
 
     return 0;
 }
@@ -97,9 +114,6 @@ int make_lame_mp3_buf(lame_mp3_buf **lbmp3, audio_buffer *ab)
         return -1;
     }
 
-    (*lbmp3)->buf = NULL;
-    (*lbmp3)->size = 0;
-
     err = init_lame_mp3_buf(*lbmp3, ab);
     if (err < 0){
         free_lame_mp3_buf(*lbmp3);
@@ -111,11 +125,10 @@ int make_lame_mp3_buf(lame_mp3_buf **lbmp3, audio_buffer *ab)
 
 void free_lame_mp3_buf(lame_mp3_buf *lbmp3)
 {
-    if (lbmp3->buf != NULL){
-        free(lbmp3->buf);
-    }
+    lbmp3->buf ? free(lbmp3->buf) : 0;
     free(lbmp3);
 }
+
 
 int init_dec(mpeg_dec *dec)
 {
@@ -177,7 +190,6 @@ int decode_mp3_settings(mpeg_dec *dec, lame_mp3_buf *lbmp3)
     }
     res = -1;
     fprintf(stderr, "Can't get settings for decoding this mp3 file\n");
-
 cleanup:        
     free_ab(pcmb);
     mpg123_close(dec->handle);

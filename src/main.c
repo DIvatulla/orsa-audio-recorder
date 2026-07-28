@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <unistd.h>
+#include <speex/speex_resampler.h> 
 
 #ifndef WF 
 #define WF 0
@@ -14,9 +15,9 @@
 #define NUM_THREADS 1
 
 #define SAMPLE_RATE 44100
-#define CHANNELS 1
-#define RECORD_FORMAT SND_PCM_FORMAT_S16_LE
-#define MAIN_PCM_BUF_DURATION 5
+#define CHANNELS 2
+#define RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
+#define MAIN_PCM_BUF_DURATION 10
 #define SAMPLE_PER_READ 4096
 
 static audio_device *recdev = NULL; 
@@ -42,9 +43,10 @@ static struct lws_client_connect_info *cc_info = NULL;
 static struct lws *client_wsi;
 
 
-int record(audio_device *d, audio_buffer *mb, audio_buffer *rb);
+int record(audio_device *d, audio_buffer *mb);
 void write_file(unsigned char *b, int size, char *filename);
 void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
+audio_buffer *resample(audio_buffer *ab);
 
 int ws_callback(
     struct lws *wsi, 
@@ -91,11 +93,22 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-	err = make_ab(&mb, recdev, am_secs, MAIN_PCM_BUF_DURATION);
+	err = make_ab(
+		&mb, 
+		get_rate_ad(recdev), 
+		get_chan_ad(recdev), 
+		get_pfmt_ad(recdev),
+		am_sec,
+		MAIN_PCM_BUF_DURATION
+	);
 	if (err < 0){
 		return err;
 	}
-	
+
+	printf("mb->size %d\n", mb->size);
+	record(recdev, mb);
+	write_file(mb->buf, mb->wi, "out.pcm");
+	/*
 	err = make_ab(&rb, recdev, am_frames, SAMPLE_PER_READ);
 	if (err < 0){
 		return err;
@@ -157,7 +170,11 @@ int main(int argc, char** argv)
 	wsd.wi = 0;
 	
 	record(recdev, mb, rb);
-	encode(lemp3, lbmp3, recdev, mb);
+	audio_buffer *nb = NULL;
+	nb = resample(mb);
+	encode(lemp3, lbmp3, recdev, nb);
+	write_file(lbmp3->buf, lbmp3->wi, "out.mp3");
+	return -3;
 	ws_pending_send = 1;
 
 	client_wsi = lws_client_connect_via_info(cc_info);
@@ -188,28 +205,40 @@ int main(int argc, char** argv)
 			break;
 		}
 	}
-
+	*/
 	free_clargs(cli_arguments);
 	free_as(settings);
 	free_ad(recdev);
 	free_ad(playdev);
-	free_enc(lemp3);
-	free_lame_mp3_buf(lbmp3);
+	//free_enc(lemp3);
+	//free_lame_mp3_buf(lbmp3);
 	free_ab(mb);
-	free_ab(rb);
-	free_dec(mdmp3);
-	free_proto_list(protocols);
-	free_context_creation_info(info);
-	free_client_connection_info(cc_info);
-	free(wsd.buf);
+	//free_ab(rb);
+	//free_dec(mdmp3);
+	//free_proto_list(protocols);
+	//free_context_creation_info(info);
+	//free_client_connection_info(cc_info);
+	//free(wsd.buf);
 	snd_config_update_free_global();
 
 	return 0;
 }
 
-int record(audio_device *d, audio_buffer *mb, audio_buffer *rb)
+
+int record(audio_device *d, audio_buffer *mb)
 {
 	int ret;
+	int err;
+	audio_buffer *rb;
+
+	err = make_ab(
+		&rb, 
+		get_rate_ad(d), 
+		get_chan_ad(d), 
+		get_pfmt_ad(d),
+		am_sec,
+		1
+	);
 
 	do {
 		ret = snd_pcm_readi(d->handle, rb->buf, snd_pcm_bytes_to_frames(d->handle, rb->size));
@@ -225,7 +254,9 @@ int record(audio_device *d, audio_buffer *mb, audio_buffer *rb)
 		push_ab(mb, rb);
 
 		printf("rec is going; mb->wi = %d, (mb->size - rb->size) = %d\n", mb->wi, mb->size - rb->size);
-	} while(mb->wi <= (mb->size - rb->size));
+	} while(mb->wi < mb->size);
+
+	free_ab(rb);
 
 	return 0;
 }
@@ -241,7 +272,7 @@ void write_file(unsigned char *b, int size, char *filename)
 
     printf("Saved\n");
 }
-
+/*
 void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb)
 {
 	int ret;
@@ -304,3 +335,46 @@ int ws_callback(
  
     return 0;
 }
+
+audio_buffer *resample(audio_buffer *ab)
+{
+	audio_buffer *res;
+	int in_len = 0;
+	int out_len = 0;
+	int err;
+
+	res = calloc(1, sizeof(audio_buffer));
+	res->size = 16000 * MAIN_PCM_BUF_DURATION;
+	res->buf = (char*)calloc(res->size, sizeof(char));
+
+	SpeexResamplerState *resampler =
+	speex_resampler_init(
+		1,          // channels
+		44100,      // input sample rate
+		16000,      // output sample rate
+		5,          // quality (0-10)
+		&err
+	);
+
+    if (!resampler || err != RESAMPLER_ERR_SUCCESS)
+    {
+        fprintf(stderr, "Failed to create resampler\n");
+        return NULL;
+    }
+
+	in_len = ab->wi / 4;
+	out_len = res->size / 4;
+
+    speex_resampler_process_int(
+        resampler,
+        0,
+        ab->buf,
+        &in_len,
+        res->buf,
+        &out_len
+	);
+
+	speex_resampler_destroy(resampler);
+	return res;
+}
+	*/
