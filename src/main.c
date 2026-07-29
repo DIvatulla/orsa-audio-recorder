@@ -205,7 +205,7 @@ void ws_loop(audio_device *recdev, audio_device *playdev)
 {
 	int rec_buf_len = sizeof_pcm_format(RECORD_FORMAT) * 
 		CHANNELS * 
-		SAMPLE_RATE *
+		16000 *
 		MAIN_PCM_BUF_DURATION;
 	int count = 0;
 
@@ -223,6 +223,7 @@ void ws_loop(audio_device *recdev, audio_device *playdev)
 			lws_callback_on_writable(client_wsi);
 		}
 		if (ws_pending_receive){
+			printf("pending receive\n");
 			clear_ws_session_data(&wsd);
 			
 			while(ws_pending_receive){
