@@ -19,7 +19,7 @@
 #define CHANNELS 1
 #define RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
 #define MAIN_PCM_BUF_DURATION 10
-#define FRAME_PER_READ 320
+#define SAMPLE_PER_READ 7056
 
 static audio_device *recdev = NULL; 
 static audio_settings *settings = NULL;
@@ -28,6 +28,7 @@ static audio_device *playdev = NULL;
 volatile sig_atomic_t ws_kill_flag = 0;
 volatile sig_atomic_t ws_pending_send = 0;
 volatile sig_atomic_t ws_pending_receive = 0;
+volatile sig_atomic_t ws_send_complete = 0;
 static ws_session_data wsd = {0};
 
 static ws_proto_list protocols = NULL;
@@ -174,8 +175,8 @@ int rec(audio_device *d, ws_session_data *wsd)
         get_rate_ad(d),
         get_chan_ad(d), 
         get_pfmt_ad(d),
-        am_frame,
-        FRAME_PER_READ
+        am_sample,
+        SAMPLE_PER_READ
 	);
 	if (err < 0){
 		return err;
@@ -215,9 +216,11 @@ void ws_loop(audio_device *recdev, audio_device *playdev)
 			while (wsd.wi <= rec_buf_len){
 				rec(recdev, &wsd);
 				lws_callback_on_writable(client_wsi);
+				ws_send_complete = 0;
+				while (!ws_send_complete){
+        			lws_service(context, 100);
+    			}
 			}
-			lws_service(context, 100);
-
 			ws_pending_send = 0;
 			ws_pending_receive = 1;
 		}
@@ -269,8 +272,10 @@ int ws_callback(
 		if (sent < wsd.wi){
 			lwsl_err("lws_write failed (%d)\n", sent);
 			ws_kill_flag = 1;
+			ws_send_complete = 1;
 			return -1;
 		}
+		ws_send_complete = 1;
 		lwsl_user("Sent %d bytes.\n", sent);
 		break;
 	case LWS_CALLBACK_CLIENT_CLOSED:
