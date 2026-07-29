@@ -207,14 +207,16 @@ void ws_loop(audio_device *recdev, audio_device *playdev)
 		CHANNELS * 
 		SAMPLE_RATE *
 		MAIN_PCM_BUF_DURATION;
+	int count = 0;
 
 	ws_pending_send = 1;
 	for (;;){
-		lws_service(context, 100);
+		lws_service(context, 0);
 		if (ws_pending_send){
 			clear_ws_session_data(&wsd);
 			rec(recdev, &wsd);
-			if (wsd.wi <= rec_buf_len){
+			count += wsd.wi;
+			if (count > rec_buf_len){
 				ws_pending_send = 0;
 				ws_pending_receive = 1;
 			}
