@@ -111,7 +111,6 @@ int main(int argc, char** argv)
 	convert_44100_16000(&mb);
 	printf("resampled mb->wi %d\n", mb->wi);
 	printf("resampled mb->size %d\n", mb->size);
-	return -2;
 	write_file(mb->buf, mb->wi, "out.pcm");
 	/*
 	err = make_ab(&rb, recdev, am_frames, SAMPLE_PER_READ);

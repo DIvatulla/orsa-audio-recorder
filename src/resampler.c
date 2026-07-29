@@ -60,7 +60,7 @@ int resample_pcm(
         return -2;
     }
 
-    out_ab->wi = out_len * sizeof_pcm_format(out_ab->pcm_format) * out_ab->channels;
+    out_ab->wi = out_len * sizeof_pcm_format(out_ab->pcm_format);
 
     return 0;
 }
