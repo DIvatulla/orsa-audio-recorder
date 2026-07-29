@@ -11,8 +11,14 @@ int init_resampler(
     unsigned int in_ch,
     unsigned int out_sr
 );
+int init_resampler(
+    SpeexResamplerState **resampler, 
+    unsigned int in_sr,
+    unsigned int in_ch,
+    unsigned int out_sr);
 int resample_pcm(
     SpeexResamplerState *resampler,
     audio_buffer *in_ab,
     audio_buffer *out_ab
 );
+int convert_44100_16000(audio_buffer **ab);

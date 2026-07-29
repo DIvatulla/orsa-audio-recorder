@@ -101,6 +101,6 @@ int convert_44100_16000(audio_buffer **ab)
 	}
 
 	speex_resampler_destroy(resampler);
-	free(*ab);
+	free_ab(*ab);
 	*ab = ob;
 }

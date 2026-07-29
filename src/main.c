@@ -16,21 +16,14 @@
 #define NUM_THREADS 1
 
 #define SAMPLE_RATE 44100
-#define CHANNELS 2
+#define CHANNELS 1
 #define RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
 #define MAIN_PCM_BUF_DURATION 10
-#define SAMPLE_PER_READ 4096
+#define FRAME_PER_READ 320
 
 static audio_device *recdev = NULL; 
 static audio_settings *settings = NULL;
 static audio_device *playdev = NULL;
-
-static audio_buffer *mb = NULL;
-static audio_buffer *rb = NULL;
-
-static lame_enc *lemp3 = NULL;
-static lame_mp3_buf *lbmp3 = NULL;
-static mpeg_dec *mdmp3 = NULL;
 
 volatile sig_atomic_t ws_kill_flag = 0;
 volatile sig_atomic_t ws_pending_send = 0;
@@ -48,6 +41,7 @@ int record(audio_device *d, audio_buffer *mb);
 void write_file(unsigned char *b, int size, char *filename);
 void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
 int convert_44100_16000(audio_buffer **ab);
+void ws_loop(audio_device *recdev, audio_device *playdev);
 
 int ws_callback(
     struct lws *wsi, 
@@ -94,45 +88,6 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-	err = make_ab(
-		&mb, 
-		get_rate_ad(recdev), 
-		get_chan_ad(recdev), 
-		get_pfmt_ad(recdev),
-		am_sec,
-		MAIN_PCM_BUF_DURATION
-	);
-	if (err < 0){
-		return err;
-	}
-
-	printf("mb->size %d\n", mb->size);
-	record(recdev, mb);
-	convert_44100_16000(&mb);
-	printf("resampled mb->wi %d\n", mb->wi);
-	printf("resampled mb->size %d\n", mb->size);
-	write_file(mb->buf, mb->wi, "out.pcm");
-	/*
-	err = make_ab(&rb, recdev, am_frames, SAMPLE_PER_READ);
-	if (err < 0){
-		return err;
-	}
-
-	err = make_enc(&lemp3, recdev, defaulteq);
-	if (err < 0){
-		return err;
-	}
-
-	err = make_lame_mp3_buf(&lbmp3, mb);
-	if (err < 0){
-		return err;
-	}
-
-	err = make_dec(&mdmp3);
-	if (err < 0){
-		return err;
-	}
-
 	//Websocket data intialization
 	err = make_proto_list(
 		&protocols, 
@@ -151,7 +106,7 @@ int main(int argc, char** argv)
 	}
 
 	context = lws_create_context(info);
-	if (!context) {
+	if (!context){
 		printf("lws init failed\n");
 	}
 
@@ -168,99 +123,31 @@ int main(int argc, char** argv)
 	if (err < 0){
 		return err;
 	}
-
-	wsd.size = LWS_PRE + MAX_PAYLOAD;
-	wsd.buf = (unsigned char*)calloc(wsd.size, sizeof(char));
-	wsd.wi = 0;
 	
-	record(recdev, mb, rb);
-	audio_buffer *nb = NULL;
-	nb = resample(mb);
-	encode(lemp3, lbmp3, recdev, nb);
-	write_file(lbmp3->buf, lbmp3->wi, "out.mp3");
-	return -3;
-	ws_pending_send = 1;
-
 	client_wsi = lws_client_connect_via_info(cc_info);
 	if (!client_wsi) {
 		fprintf(stderr, "lws_client_connect_via_info failed\n");
 		lws_context_destroy(context);
 		return -16;
 	}
-	//free_clargs(cli_arguments);
-	for (;;){
-		lws_service(context, 100);
-		if (ws_pending_send){
-			clear_ws_session_data(&wsd);
-			wsd.wi = lbmp3->wi;
-			memcpy(&wsd.buf[LWS_PRE], lbmp3->buf, lbmp3->wi);
-			lws_callback_on_writable(client_wsi);
-		}
-		if (ws_pending_receive){
-			lbmp3->wi = wsd.wi;
-			memcpy(lbmp3->buf, wsd.buf, wsd.wi);
-			decode_mp3_settings(mdmp3, lbmp3);
-			play_mp3(playdev, mdmp3, lbmp3, rb);
-			ws_kill_flag = 1;
-		}
-		if (ws_kill_flag){
-			//lws_cancel_service(context);
-			lws_context_destroy(context);
-			break;
-		}
-	}
-	*/
+
+	free_clargs(cli_arguments);
+
+	wsd.size = LWS_PRE + MAX_PAYLOAD;
+	wsd.buf = (unsigned char*)calloc(wsd.size, sizeof(char));
+	wsd.wi = 0;
+	
+	ws_loop(recdev, playdev);
+
 	free_clargs(cli_arguments);
 	free_as(settings);
 	free_ad(recdev);
 	free_ad(playdev);
-	//free_enc(lemp3);
-	//free_lame_mp3_buf(lbmp3);
-	free_ab(mb);
-	//free_ab(rb);
-	//free_dec(mdmp3);
-	//free_proto_list(protocols);
-	//free_context_creation_info(info);
-	//free_client_connection_info(cc_info);
-	//free(wsd.buf);
+	free_proto_list(protocols);
+	free_context_creation_info(info);
+	free_client_connection_info(cc_info);
+	free(wsd.buf);
 	snd_config_update_free_global();
-
-	return 0;
-}
-
-
-int record(audio_device *d, audio_buffer *mb)
-{
-	int ret;
-	int err;
-	audio_buffer *rb;
-
-	err = make_ab(
-		&rb, 
-		get_rate_ad(d), 
-		get_chan_ad(d), 
-		get_pfmt_ad(d),
-		am_sec,
-		1
-	);
-
-	do {
-		ret = snd_pcm_readi(d->handle, rb->buf, snd_pcm_bytes_to_frames(d->handle, rb->size));
-		if (ret == -EPIPE){
-			snd_pcm_prepare(d->handle);
-		}
-		else if (ret < 0){
-			fprintf(stderr, "Error while recording\n");	
-			break;
-		}
-
-		rb->wi += snd_pcm_bytes_to_frames(d->handle, rb->size);
-		push_ab(mb, rb);
-
-		printf("rec is going; mb->wi = %d, (mb->size - rb->size) = %d\n", mb->wi, mb->size - rb->size);
-	} while(mb->wi < mb->size);
-
-	free_ab(rb);
 
 	return 0;
 }
@@ -277,21 +164,76 @@ void write_file(unsigned char *b, int size, char *filename)
     printf("Saved\n");
 }
 
-
-/*
-void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb)
+int rec(audio_device *d, ws_session_data *wsd)
 {
-	int ret;
-	size_t done;
+	audio_buffer *rb = NULL;
+	int ret, err;
 
-	mpg123_open_feed(mdmp3->handle);
-    mpg123_feed(mdmp3->handle, lb->buf, lb->size);
-	
-	snd_pcm_prepare(d->handle);
-	while ((ret = mpg123_read(mdmp3->handle, rb->buf, rb->size, &done)) == MPG123_OK){
-		snd_pcm_writei(d->handle, rb->buf, SAMPLE_PER_READ);
+	err = make_ab(
+		&rb,
+        get_rate_ad(d),
+        get_chan_ad(d), 
+        get_pfmt_ad(d),
+        am_frame,
+        FRAME_PER_READ
+	);
+	if (err < 0){
+		return err;
 	}
-	snd_pcm_drain(d->handle);
+
+	ret = snd_pcm_readi(d->handle, rb->buf, snd_pcm_bytes_to_frames(d->handle, rb->size));
+	if (ret == -EPIPE){
+		snd_pcm_prepare(d->handle);
+	}
+	else if (ret < 0){
+		fprintf(stderr, "Error while recording\n");	
+		free_ab(rb);
+		return -1;
+	}
+
+	convert_44100_16000(&rb);
+	memcpy(&wsd->buf[LWS_PRE+wsd->wi], rb->buf, rb->size);
+	wsd->wi += rb->size;
+	free_ab(rb);
+	printf("rec is going; wsd->wi = %d\n", wsd->wi);
+	
+	return 0;
+}
+
+void ws_loop(audio_device *recdev, audio_device *playdev)
+{
+	int rec_buf_len = sizeof_pcm_format(RECORD_FORMAT) * CHANNELS * SAMPLE_RATE;
+
+	ws_pending_send = 1;
+	for (;;){
+		if (ws_pending_send){
+			clear_ws_session_data(&wsd);
+
+			while (wsd.wi <= rec_buf_len){
+				rec(recdev, &wsd);
+				lws_callback_on_writable(client_wsi);
+				lws_service(context, 100);
+			}
+
+			ws_pending_send = 0;
+			ws_pending_receive = 1;
+		}
+		if (ws_pending_receive){
+			clear_ws_session_data(&wsd);
+			
+			while(ws_pending_receive){
+				lws_service(context, 100);
+			}
+			
+			ws_pending_receive = 0;
+			ws_kill_flag = 1;
+		}
+		if (ws_kill_flag){
+			//lws_cancel_service(context);
+			lws_context_destroy(context);
+			break;
+		}
+	}
 }
 
 int ws_callback(
@@ -313,8 +255,7 @@ int ws_callback(
 		memcpy(wsd.buf, in, len);
 		printf("remaining packet size - %ld, wsd.wi - %d\n", lws_remaining_packet_payload(wsi), wsd.wi);
 		if ((!lws_remaining_packet_payload(wsi)) && lws_is_final_fragment(wsi)){
-			clear_ws_session_data(&wsd);
-			ws_pending_receive = 1;
+			ws_pending_receive = 0;
 		}
 		break;
     case LWS_CALLBACK_CLIENT_WRITEABLE:
@@ -327,7 +268,6 @@ int ws_callback(
 			ws_kill_flag = 1;
 			return -1;
 		}
-		ws_pending_send = 0;
 		lwsl_user("Sent %d bytes.\n", sent);
 		break;
 	case LWS_CALLBACK_CLIENT_CLOSED:
@@ -341,46 +281,3 @@ int ws_callback(
  
     return 0;
 }
-
-audio_buffer *resample(audio_buffer *ab)
-{
-	audio_buffer *res;
-	int in_len = 0;
-	int out_len = 0;
-	int err;
-
-	res = calloc(1, sizeof(audio_buffer));
-	res->size = 16000 * MAIN_PCM_BUF_DURATION;
-	res->buf = (char*)calloc(res->size, sizeof(char));
-
-	SpeexResamplerState *resampler =
-	speex_resampler_init(
-		1,          // channels
-		44100,      // input sample rate
-		16000,      // output sample rate
-		5,          // quality (0-10)
-		&err
-	);
-
-    if (!resampler || err != RESAMPLER_ERR_SUCCESS)
-    {
-        fprintf(stderr, "Failed to create resampler\n");
-        return NULL;
-    }
-
-	in_len = ab->wi / 4;
-	out_len = res->size / 4;
-
-    speex_resampler_process_int(
-        resampler,
-        0,
-        ab->buf,
-        &in_len,
-        res->buf,
-        &out_len
-	);
-
-	speex_resampler_destroy(resampler);
-	return res;
-}
-	*/

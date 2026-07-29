@@ -51,7 +51,7 @@ int init_as(audio_settings *s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
 	return 0;
 }
 
-int make_as(audio_settings **s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
+int make_as(audio_settings **s, unsigned int r, int ch, snd_pcm_format_t pcmf)
 {
     int err;
 	
@@ -61,7 +61,7 @@ int make_as(audio_settings **s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
 		return -1;
 	}
 
-	err = init_as(*s, r, ch, pcm_f);
+	err = init_as(*s, r, ch, pcmf);
 	if (err < 0){
         free_as(*s);
 		return err;
