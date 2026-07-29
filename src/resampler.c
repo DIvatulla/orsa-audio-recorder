@@ -37,7 +37,7 @@ int init_resampler(
 
 int resample_pcm(
     SpeexResamplerState *resampler,
-    audio_buffer *in_ab, 
+    audio_buffer *in_ab,
     audio_buffer *out_ab)
 {
     int err;
@@ -59,10 +59,6 @@ int resample_pcm(
         fprintf(stderr, "Resampling process failed: %d\n", err);
         return -2;
     }
-
-    out_ab->wi = out_len * 
-        sizeof_pcm_format(out_ab->pcm_format) * 
-        out_ab->channels;
 
     return 0;
 }

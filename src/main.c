@@ -277,6 +277,7 @@ void write_file(unsigned char *b, int size, char *filename)
 
 int convert_44100_16000(audio_buffer **ab)
 {
+	int out_rs = 16000;
 	int err = 0;
 	audio_buffer *ob;
 	SpeexResamplerState *resampler = NULL;
@@ -285,15 +286,20 @@ int convert_44100_16000(audio_buffer **ab)
         &resampler, 
         (*ab)->sample_rate, 
         (*ab)->channels, 
-        16000
+        out_rs
     );
 	if (err < 0){
         return err;
     }
 	
-	ob->size = calc_pcm_out_len(resampler, (*ab)->size);
+	ob = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	ob->size = calc_pcm_out_len(resampler, get_frame_size_ab(*ab)) * 
+		sizeof_pcm_format((*ab)->pcm_format);
+
+	printf("ob->size %d\n", ob->size);
+	exit(-1);
 	
-	err = resample_pcm(ab, ob);
+	err = resample_pcm(resampler, *ab, ob);
 	if (err < 0){
 		free(ob);
 		return err;
