@@ -2,6 +2,7 @@
 #include "../include/wwmp3.h"
 #include "../include/clarg.h"
 #include "../include/websockc.h"
+#include "../include/resampler.h"
 #include <alsa/asoundlib.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -46,7 +47,7 @@ static struct lws *client_wsi;
 int record(audio_device *d, audio_buffer *mb);
 void write_file(unsigned char *b, int size, char *filename);
 void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
-audio_buffer *resample(audio_buffer *ab);
+int convert_44100_16000(audio_buffer **ab);
 
 int ws_callback(
     struct lws *wsi, 
@@ -107,6 +108,7 @@ int main(int argc, char** argv)
 
 	printf("mb->size %d\n", mb->size);
 	record(recdev, mb);
+	convert_44100_16000(&mb);
 	write_file(mb->buf, mb->wi, "out.pcm");
 	/*
 	err = make_ab(&rb, recdev, am_frames, SAMPLE_PER_READ);
@@ -271,6 +273,35 @@ void write_file(unsigned char *b, int size, char *filename)
     fclose(f);
 
     printf("Saved\n");
+}
+
+int convert_44100_16000(audio_buffer **ab)
+{
+	int err = 0;
+	audio_buffer *ob;
+	SpeexResamplerState *resampler = NULL;
+
+    err = init_resampler(
+        &resampler, 
+        (*ab)->sample_rate, 
+        (*ab)->channels, 
+        16000
+    );
+	if (err < 0){
+        return err;
+    }
+	
+	ob->size = calc_pcm_out_len(resampler, (*ab)->size);
+	
+	err = resample_pcm(ab, ob);
+	if (err < 0){
+		free(ob);
+		return err;
+	}
+
+	speex_resampler_destroy(resampler);
+	free(*ab);
+	*ab = ob;
 }
 /*
 void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb)

@@ -35,7 +35,7 @@ int init_resampler(
     return 0;
 }
 
-int resample_process(
+int resample_pcm(
     SpeexResamplerState *resampler,
     audio_buffer *in_ab, 
     audio_buffer *out_ab)
@@ -60,32 +60,9 @@ int resample_process(
         return -2;
     }
 
-    out_ab->wi = out_len;
-    return 0;
-}
+    out_ab->wi = out_len * 
+        sizeof_pcm_format(out_ab->pcm_format) * 
+        out_ab->channels;
 
-int resample_pcm(
-    audio_buffer *in_ab,
-    audio_buffer *out_ab) 
-{
-    int err = 0;
-    SpeexResamplerState *resampler = NULL;
-
-    err = init_resampler(
-        &resampler, 
-        in_ab->sample_rate, 
-        in_ab->channels, 
-        out_ab->sample_rate
-    );
-    if (err < 0){
-        return err;
-    }
-
-    err = resample_process(resampler, in_ab, out_ab);
-    if (err < 0){
-        return err;
-    } 
-
-    speex_resampler_destroy(resampler);
     return 0;
 }

@@ -11,12 +11,8 @@ int init_resampler(
     unsigned int in_ch,
     unsigned int out_sr
 );
-int resample_process(
-    SpeexResamplerState *resampler,
-    audio_buffer *in_ab, 
-    audio_buffer *out_ab
-);
 int resample_pcm(
+    SpeexResamplerState *resampler,
     audio_buffer *in_ab,
     audio_buffer *out_ab
 );
