@@ -87,7 +87,7 @@ int convert_44100_16000(audio_buffer **ab)
         out_rs,
         (*ab)->channels, 
         (*ab)->pcm_format,
-        am_sample,
+        am_frame,
         calc_pcm_out_len(resampler, get_frame_size_ab(*ab))
     );
     if (err < 0){
