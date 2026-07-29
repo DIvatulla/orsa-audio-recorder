@@ -131,8 +131,6 @@ int main(int argc, char** argv)
 		return -16;
 	}
 
-	free_clargs(cli_arguments);
-
 	wsd.size = LWS_PRE + MAX_PAYLOAD;
 	wsd.buf = (unsigned char*)calloc(wsd.size, sizeof(char));
 	wsd.wi = 0;
@@ -202,7 +200,10 @@ int rec(audio_device *d, ws_session_data *wsd)
 
 void ws_loop(audio_device *recdev, audio_device *playdev)
 {
-	int rec_buf_len = sizeof_pcm_format(RECORD_FORMAT) * CHANNELS * SAMPLE_RATE;
+	int rec_buf_len = sizeof_pcm_format(RECORD_FORMAT) * 
+		CHANNELS * 
+		SAMPLE_RATE *
+		MAIN_PCM_BUF_DURATION;
 
 	ws_pending_send = 1;
 	for (;;){
