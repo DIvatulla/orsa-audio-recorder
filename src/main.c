@@ -135,6 +135,8 @@ int main(int argc, char** argv)
 	wsd.buf = (unsigned char*)calloc(wsd.size, sizeof(char));
 	wsd.wi = 0;
 	
+	lws_service(context, 0);
+
 	ws_loop(recdev, playdev);
 
 	free_clargs(cli_arguments);
@@ -213,8 +215,8 @@ void ws_loop(audio_device *recdev, audio_device *playdev)
 			while (wsd.wi <= rec_buf_len){
 				rec(recdev, &wsd);
 				lws_callback_on_writable(client_wsi);
-				lws_service(context, 100);
 			}
+			lws_service(context, 100);
 
 			ws_pending_send = 0;
 			ws_pending_receive = 1;
