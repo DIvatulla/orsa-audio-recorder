@@ -175,8 +175,8 @@ int rec(audio_device *d, ws_session_data *wsd)
         get_rate_ad(d),
         get_chan_ad(d), 
         get_pfmt_ad(d),
-        am_sample,
-        SAMPLE_PER_READ
+        am_sec,
+        1
 	);
 	if (err < 0){
 		return err;
@@ -210,19 +210,15 @@ void ws_loop(audio_device *recdev, audio_device *playdev)
 
 	ws_pending_send = 1;
 	for (;;){
+		lws_service(context, 100);
 		if (ws_pending_send){
 			clear_ws_session_data(&wsd);
-
-			while (wsd.wi <= rec_buf_len){
-				rec(recdev, &wsd);
-				lws_callback_on_writable(client_wsi);
-				ws_send_complete = 0;
-				while (!ws_send_complete){
-        			lws_service(context, 100);
-    			}
+			rec(recdev, &wsd);
+			if (wsd.wi <= rec_buf_len){
+				ws_pending_send = 0;
+				ws_pending_receive = 1;
 			}
-			ws_pending_send = 0;
-			ws_pending_receive = 1;
+			lws_callback_on_writable(client_wsi);
 		}
 		if (ws_pending_receive){
 			clear_ws_session_data(&wsd);
@@ -277,6 +273,7 @@ int ws_callback(
 		}
 		ws_send_complete = 1;
 		lwsl_user("Sent %d bytes.\n", sent);
+		clear_ws_session_data(&wsd);
 		break;
 	case LWS_CALLBACK_CLIENT_CLOSED:
 		lwsl_user("Connection closed.\n");
