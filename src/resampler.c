@@ -60,5 +60,47 @@ int resample_pcm(
         return -2;
     }
 
+    out_ab->wi = out_len * sizeof_pcm_format(out_ab->pcm_format) * out_ab->channels;
+
     return 0;
+}
+
+int convert_44100_16000(audio_buffer **ab)
+{
+	int out_rs = 16000;
+	int err = 0;
+	audio_buffer *ob;
+	SpeexResamplerState *resampler = NULL;
+
+    err = init_resampler(
+        &resampler, 
+        (*ab)->sample_rate, 
+        (*ab)->channels, 
+        out_rs
+    );
+	if (err < 0){
+        return err;
+    }
+	
+    err = make_ab(
+        &ob,
+        out_rs,
+        (*ab)->channels, 
+        (*ab)->pcm_format,
+        am_sample,
+        calc_pcm_out_len(resampler, get_frame_size_ab(*ab))
+    );
+    if (err < 0){
+        return err;
+    }
+
+	err = resample_pcm(resampler, *ab, ob);
+	if (err < 0){
+		free(ob);
+		return err;
+	}
+
+	speex_resampler_destroy(resampler);
+	free(*ab);
+	*ab = ob;
 }

@@ -109,6 +109,9 @@ int main(int argc, char** argv)
 	printf("mb->size %d\n", mb->size);
 	record(recdev, mb);
 	convert_44100_16000(&mb);
+	printf("resampled mb->wi %d\n", mb->wi);
+	printf("resampled mb->size %d\n", mb->size);
+	return -2;
 	write_file(mb->buf, mb->wi, "out.pcm");
 	/*
 	err = make_ab(&rb, recdev, am_frames, SAMPLE_PER_READ);
@@ -275,40 +278,7 @@ void write_file(unsigned char *b, int size, char *filename)
     printf("Saved\n");
 }
 
-int convert_44100_16000(audio_buffer **ab)
-{
-	int out_rs = 16000;
-	int err = 0;
-	audio_buffer *ob;
-	SpeexResamplerState *resampler = NULL;
 
-    err = init_resampler(
-        &resampler, 
-        (*ab)->sample_rate, 
-        (*ab)->channels, 
-        out_rs
-    );
-	if (err < 0){
-        return err;
-    }
-	
-	ob = (audio_buffer*)calloc(1, sizeof(audio_buffer));
-	ob->size = calc_pcm_out_len(resampler, get_frame_size_ab(*ab)) * 
-		sizeof_pcm_format((*ab)->pcm_format);
-
-	printf("ob->size %d\n", ob->size);
-	exit(-1);
-	
-	err = resample_pcm(resampler, *ab, ob);
-	if (err < 0){
-		free(ob);
-		return err;
-	}
-
-	speex_resampler_destroy(resampler);
-	free(*ab);
-	*ab = ob;
-}
 /*
 void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb)
 {
