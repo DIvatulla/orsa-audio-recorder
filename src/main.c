@@ -175,8 +175,8 @@ int rec(audio_device *d, ws_session_data *wsd)
         get_rate_ad(d),
         get_chan_ad(d), 
         get_pfmt_ad(d),
-        am_sec,
-        1
+        am_sample,
+        7056
 	);
 	if (err < 0){
 		return err;
@@ -193,6 +193,7 @@ int rec(audio_device *d, ws_session_data *wsd)
 	}
 
 	convert_44100_16000(&rb);
+	printf("rb->size %d\n", rb->size);
 	memcpy(&wsd->buf[LWS_PRE+wsd->wi], rb->buf, rb->size);
 	wsd->wi += rb->size;
 	free_ab(rb);
