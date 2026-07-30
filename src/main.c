@@ -19,7 +19,7 @@
 #define CHANNELS 1
 #define RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
 #define MAIN_PCM_BUF_DURATION 10
-#define SAMPLE_PER_READ 7056
+#define SAMPLE_PER_READ 1765
 
 static audio_device *recdev = NULL; 
 static audio_settings *settings = NULL;
@@ -176,7 +176,7 @@ int rec(audio_device *d, ws_session_data *wsd)
         get_chan_ad(d), 
         get_pfmt_ad(d),
         am_sample,
-        7056
+        SAMPLE_PER_READ
 	);
 	if (err < 0){
 		return err;
