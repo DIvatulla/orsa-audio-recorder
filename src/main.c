@@ -19,7 +19,7 @@
 #define CHANNELS 1
 #define RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
 #define MAIN_PCM_BUF_DURATION 10
-#define SAMPLE_PER_READ 1765
+#define SAMPLE_PER_READ 1760
 
 static audio_device *recdev = NULL; 
 static audio_settings *settings = NULL;
