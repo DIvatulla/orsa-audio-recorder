@@ -65,10 +65,9 @@ int resample_pcm(
     return 0;
 }
 
-int convert_44100_16000(audio_buffer **ab)
+int convert_pcm_buf(audio_buffer **ab, int out_sr)
 {
-	int out_rs = 16000;
-	int err = 0;
+    int err = 0;
 	audio_buffer *ob;
 	SpeexResamplerState *resampler = NULL;
 
@@ -76,15 +75,15 @@ int convert_44100_16000(audio_buffer **ab)
         &resampler, 
         (*ab)->sample_rate, 
         (*ab)->channels, 
-        out_rs
+        out_sr
     );
 	if (err < 0){
         return err;
     }
-	
+
     err = make_ab(
         &ob,
-        out_rs,
+        out_sr,
         (*ab)->channels, 
         (*ab)->pcm_format,
         am_frame,
@@ -94,13 +93,14 @@ int convert_44100_16000(audio_buffer **ab)
         return err;
     }
 
-	err = resample_pcm(resampler, *ab, ob);
+    err = resample_pcm(resampler, *ab, ob);
 	if (err < 0){
 		free(ob);
 		return err;
 	}
 
-	speex_resampler_destroy(resampler);
+    speex_resampler_destroy(resampler);
 	free_ab(*ab);
 	*ab = ob;
+    return 0;
 }

@@ -21,4 +21,4 @@ int resample_pcm(
     audio_buffer *in_ab,
     audio_buffer *out_ab
 );
-int convert_44100_16000(audio_buffer **ab);
+int convert_pcm_buf(audio_buffer **ab, int out_sr);

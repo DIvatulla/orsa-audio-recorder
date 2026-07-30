@@ -51,12 +51,6 @@ void free_str_fields(int amount, ...)
     va_end(list);
 }
 
-void clear_ws_session_data(ws_session_data *wsd)
-{
-    wsd->wi = 0;
-    memset(wsd->buf, 0, wsd->size);
-}
-
 /*
 item 0 of protocol list will carry direct pointer to stack allocated 
 constant in main file with ws protocol name
@@ -214,4 +208,48 @@ void free_client_connection_info(struct lws_client_connect_info *cc_info)
     free_str_fields(5, &cc_info->address, &cc_info->path, &cc_info->host,
         &cc_info->origin, &cc_info->protocol);
     free(cc_info);
+}
+
+int make_ws_queue(ws_queue **wsq, int size)
+{
+    *wsq = (*ws_queue)calloc(1, sizeof(ws_queue));
+    if (!(*wsq)){
+        return -1;
+    }
+    (*wsq)->size = size;
+    (*wsq)->cap = MAX_PAYLOAD;
+    
+    (*wsq)->buf = (char*)calloc(size, sizeof(char));
+    if (!((*wsq)->buf)){
+        free(*wsq);
+        return -2;
+    }
+}
+
+int push_ws_queue(ws_queue *wsq, char *from, int from_size)
+{
+    if ((wsq->wi + from_size) >= wsq->cap){
+        return -1;
+    }   
+    if ((wsq->wi + from_size) >= wsq->size){
+        wsq->buf = (char*)realloc(wsq->buf, (wsq->wi + from_size + 1) * sizeof(char*));
+        if (!ws_buf){
+            return -1;
+        }
+    }
+    memcpy(wsq->wi, from, from_size);
+    wsq->wi += from_size;
+    return 0;
+}
+
+void clear_ws_queue(ws_queue *wsq)
+{
+    memset(wsq->buf, 0, wsd->size);
+    wsq->wi = 0;
+}
+
+void free_ws_queue(ws_queue *wsq)
+{
+    free(wsq->buf);
+    free(wsq);
 }

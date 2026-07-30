@@ -8,7 +8,7 @@
 #include <signal.h>
 
 #ifndef MAX_PAYLOAD
-#define MAX_PAYLOAD 5242880 //5mb
+#define MAX_PAYLOAD 2621440 //5mb
 #endif
 
 #define WS_DEFAULT_PORT 80
@@ -20,7 +20,21 @@ typedef struct{
 } ws_session_data;
 typedef struct lws_protocols **ws_proto_list;
 
-void clear_ws_session_data(ws_session_data *wsd);
+typedef enum{
+    WS_NONE,
+    WS_SEND,
+    WS_RECV,
+    WS_PLAY,
+    WS_KILL
+} ws_state;
+
+typedef struct{
+    char *buf;
+    int wi;
+    int size;
+    int cap;
+} ws_queue;
+
 
 void init_proto_list(
     ws_proto_list pl,
@@ -67,5 +81,7 @@ int make_client_connection_info(
     char *origin_header);
 
 void free_client_connection_info(struct lws_client_connect_info *cc_info);
+
+int make_ws_queue(ws_queue **wsq, int size);
 
 #endif
