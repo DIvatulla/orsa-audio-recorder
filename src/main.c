@@ -154,6 +154,8 @@ int main(int argc, char** argv)
 	free_proto_list(protocols);
 	free_context_creation_info(info);
 	free_client_connection_info(cc_info);
+	free_ws_queue(in_wsq);
+	free_ws_queue(out_wsq);
 	snd_config_update_free_global();
 
 	return 0;
@@ -261,6 +263,7 @@ int ws_loop(audio_device *recdev, audio_device *playdev)
 			case WS_PLAY:
 				play(playdev);
 				clear_ws_queue(in_wsq);
+				wscs = WS_RECV;
 				break;
 			case WS_KILL:
 				goto stop;
@@ -286,6 +289,11 @@ int ws_callback(
 		lwsl_user("Connected to server.\n");
 		break;
 	case LWS_CALLBACK_CLIENT_RECEIVE:
+		if ((len == 4) && (strcmp(endmsg, in))){
+			wscs = WS_KILL;
+			break;
+		}
+
 		push_ws_queue(in_wsq, in, len);
 		printf("remaining packet size - %ld, in_wsq.wi - %d\n", lws_remaining_packet_payload(wsi), in_wsq->wi);
 		if ((!lws_remaining_packet_payload(wsi)) && lws_is_final_fragment(wsi)){
