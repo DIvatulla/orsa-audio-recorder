@@ -173,7 +173,7 @@ int main(int argc, char** argv)
 
 void write_file(unsigned char *b, int size, char *filename)
 {
-	FILE *f = fopen(filename, "wb");
+	FILE *f = fopen(filename, "ab");
     if (!f) { 
 		fprintf(stderr, "fopen");
 	}
@@ -213,10 +213,12 @@ int rec(audio_device *d)
 	convert_pcm_buf(&rb, 16000);
 	printf("REC rb->size %d\n", rb->size);
 	
-	err = push_ws_queue(out_wsq, rb->buf, rb->size);
+	err = push_ws_queue_out(out_wsq, rb->buf, rb->size);
 	if (err < 0){
 		return err;
 	}
+
+	write_file(rb->buf, rb->size, "./out.pcm");
 
 	free_ab(rb);
 	printf("rec is going; out_wsq->wi = %d\n", out_wsq->wi);
@@ -241,6 +243,7 @@ int play(audio_device *d)
 	convert_pcm_buf(&rb, 44100);
 	printf("PLAY rb->size %d\n", rb->size);
 	snd_pcm_writei(d->handle, rb->buf, get_cur_sample_size_ab(rb));
+	snd_pcm_drain(d->handle);
 	free_ab(rb);
 }
 
