@@ -18,7 +18,7 @@
 #define SAMPLE_RATE 44100
 #define CHANNELS 1
 #define RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
-#define MAIN_PCM_BUF_DURATION 3
+#define MAIN_PCM_BUF_DURATION 5
 #define SAMPLE_PER_READ 1760
 
 const char endmsg[] = "END";
@@ -210,7 +210,7 @@ int rec(audio_device *d)
 		return -1;
 	}
 
-	convert_pcm_buf(&rb, 16000);
+	convert_pcm_buf(&rb, 24000);
 	printf("REC rb->size %d\n", rb->size);
 	
 	err = push_ws_queue_out(out_wsq, rb->buf, rb->size);
@@ -230,6 +230,8 @@ int play(audio_device *d)
 {
 	int err;
 	audio_buffer *rb = NULL;
+	
+	printf("play in_wsq->wi %d\n", in_wsq->wi);
 
 	err = make_ab(
 		&rb,
@@ -237,10 +239,13 @@ int play(audio_device *d)
 		1,
 		SND_PCM_FORMAT_FLOAT_LE,
 		am_sample,
-		(in_wsq->wi / 24000)
+		in_wsq->wi / sizeof_pcm_format(SND_PCM_FORMAT_FLOAT_LE) 
 	);
-
+	printf("play rb->size %d\n", rb->size);
+	memcpy(rb->buf, in_wsq->buf, in_wsq->wi);
 	convert_pcm_buf(&rb, 44100);
+	
+
 	printf("PLAY rb->size %d\n", rb->size);
 	snd_pcm_writei(d->handle, rb->buf, get_cur_sample_size_ab(rb));
 	snd_pcm_drain(d->handle);
@@ -312,8 +317,8 @@ int ws_callback(
 		printf("remaining packet size - %ld, in_wsq.wi - %d\n", lws_remaining_packet_payload(wsi), in_wsq->wi);
 		if ((!lws_remaining_packet_payload(wsi)) && lws_is_final_fragment(wsi)){
 			wscs = WS_PLAY;
+			break;
 		}
-		break;
     case LWS_CALLBACK_CLIENT_WRITEABLE:
 		if (wscs == WS_END){
 			clear_ws_queue(out_wsq);
