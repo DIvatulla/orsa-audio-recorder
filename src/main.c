@@ -246,7 +246,7 @@ int ws_loop(audio_device *recdev, audio_device *playdev)
 	wscs = WS_SEND;
 	for (;;){
 		lws_service(context, 0);
-
+		
 		switch(wscs){
 			case WS_SEND:
 				old_out_wsq_wi = out_wsq->wi;
@@ -267,6 +267,8 @@ int ws_loop(audio_device *recdev, audio_device *playdev)
 				break;
 			case WS_KILL:
 				goto stop;
+				break;
+			case WS_NONE:
 				break;
 		}
 	}

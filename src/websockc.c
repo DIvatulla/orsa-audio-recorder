@@ -213,14 +213,16 @@ void free_client_connection_info(struct lws_client_connect_info *cc_info)
 int make_ws_queue(ws_queue **wsq, int size)
 {
     *wsq = (ws_queue*)calloc(1, sizeof(ws_queue));
-    if (!(*wsq)){
+    if ((*wsq) == NULL){
+        fprintf(stderr, "can't malloc ws queue\n");
         return -1;
     }
     (*wsq)->size = size;
     (*wsq)->cap = MAX_PAYLOAD;
     
     (*wsq)->buf = (char*)calloc(size, sizeof(char));
-    if (!((*wsq)->buf)){
+    if (((*wsq)->buf) == NULL){
+        fprintf(stderr, "can't malloc ws queue buf\n");
         free(*wsq);
         return -2;
     }
@@ -233,7 +235,8 @@ int push_ws_queue(ws_queue *wsq, char *from, int from_size)
     }   
     if ((wsq->wi + from_size) >= wsq->size){
         wsq->buf = (char*)realloc(wsq->buf, (wsq->wi + from_size + 1) * sizeof(char*));
-        if (!wsq->buf){
+        if (wsq->buf == NULL){
+            fprintf(stderr, "can't realloc queue while push\n");
             return -1;
         }
     }
