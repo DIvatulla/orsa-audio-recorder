@@ -18,7 +18,7 @@
 #define SAMPLE_RATE 44100
 #define CHANNELS 1
 #define RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
-#define MAIN_PCM_BUF_DURATION 10
+#define MAIN_PCM_BUF_DURATION 3
 #define SAMPLE_PER_READ 1760
 
 const char endmsg[] = "END";
@@ -149,8 +149,12 @@ int main(int argc, char** argv)
 	
 	lws_service(context, 0);
 	lws_callback_on_writable(client_wsi);
+	lws_service(context, 0);
 	lws_callback_on_writable(client_wsi);
+	lws_service(context, 0);
 	lws_callback_on_writable(client_wsi);
+	lws_service(context, 0);
+
 	ws_loop(recdev, playdev);
 
 	free_clargs(cli_arguments);
@@ -259,10 +263,7 @@ int ws_loop(audio_device *recdev, audio_device *playdev)
 				rec(recdev);
 				count += out_wsq->wi - old_out_wsq_wi;
 				if (count > rec_limit){
-					clear_ws_queue(out_wsq);
-					push_ws_queue_out(out_wsq, (char*)endmsg, 3);
-					lws_callback_on_writable(client_wsi);
-					wscs = WS_RECV;
+					wscs = WS_END;
 				}
 				lws_callback_on_writable(client_wsi);
 				break;
@@ -311,14 +312,22 @@ int ws_callback(
 		}
 		break;
     case LWS_CALLBACK_CLIENT_WRITEABLE:
+		if (wscs == WS_END){
+			clear_ws_queue(out_wsq);
+			push_ws_queue_out(out_wsq, (char*)endmsg, 3);
+			lws_write(wsi, &out_wsq->buf[LWS_PRE], out_wsq->wi, LWS_WRITE_BINARY);
+			wscs = WS_RECV;
+			break;
+		}
 		if (wscs != WS_SEND){
+			clear_ws_queue(out_wsq);
 			break;
 		}
 
 		printf("Sending\n");
 		printf("out_wsd.wi %d\n", out_wsq->wi);
 		
-		int sent = lws_write(wsi, &out_wsq->buf[LWS_PRE], (out_wsq->wi) - LWS_PRE, LWS_WRITE_BINARY);
+		int sent = lws_write(wsi, &out_wsq->buf[LWS_PRE], out_wsq->wi, LWS_WRITE_BINARY);
 		if (sent < out_wsq->wi){
 			lwsl_err("lws_write failed (%d)\n", sent);
 			wscs = WS_KILL;
