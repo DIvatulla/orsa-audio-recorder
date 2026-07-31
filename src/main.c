@@ -18,7 +18,7 @@
 #define SAMPLE_RATE 44100
 #define CHANNELS 1
 #define RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
-#define MAIN_PCM_BUF_DURATION 5
+#define MAIN_PCM_BUF_DURATION 10
 #define SAMPLE_PER_READ 1760
 
 const char endmsg[] = "END";
@@ -77,7 +77,7 @@ int main(int argc, char** argv)
 	if (err < 0){
 		return err;
 	}
-
+	settings->pcm_format = SND_PCM_FORMAT_S16_LE;
 	err = make_ad(
 		&playdev,
 		(cli_arguments[OUTPUT_DEV] ? cli_arguments[OUTPUT_DEV] : "plughw:0"),
@@ -210,15 +210,13 @@ int rec(audio_device *d)
 		return -1;
 	}
 
-	convert_pcm_buf(&rb, 24000);
+	convert_pcm_buf(&rb, 16000);
 	printf("REC rb->size %d\n", rb->size);
 	
 	err = push_ws_queue_out(out_wsq, rb->buf, rb->size);
 	if (err < 0){
 		return err;
 	}
-
-	write_file(rb->buf, rb->size, "./out.pcm");
 
 	free_ab(rb);
 	printf("rec is going; out_wsq->wi = %d\n", out_wsq->wi);
@@ -245,8 +243,10 @@ int play(audio_device *d)
 	memcpy(rb->buf, in_wsq->buf, in_wsq->wi);
 	convert_pcm_buf(&rb, 44100);
 	
-
 	printf("PLAY rb->size %d\n", rb->size);
+
+	write_file(rb->buf, rb->size, "./out.pcm");
+
 	snd_pcm_writei(d->handle, rb->buf, get_cur_sample_size_ab(rb));
 	snd_pcm_drain(d->handle);
 	free_ab(rb);
