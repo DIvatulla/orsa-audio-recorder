@@ -18,7 +18,7 @@
 #define SAMPLE_RATE 44100
 #define CHANNELS 1
 #define RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
-#define MAIN_PCM_BUF_DURATION 10
+#define MAIN_PCM_BUF_DURATION 15
 #define SAMPLE_PER_READ 1760
 
 const char endmsg[] = "END";
@@ -78,6 +78,7 @@ int main(int argc, char** argv)
 		return err;
 	}
 	settings->pcm_format = SND_PCM_FORMAT_S16_LE;
+	settings->rate = 24000;
 	err = make_ad(
 		&playdev,
 		(cli_arguments[OUTPUT_DEV] ? cli_arguments[OUTPUT_DEV] : "plughw:0"),
@@ -227,29 +228,38 @@ int rec(audio_device *d)
 int play(audio_device *d)
 {
 	int err;
+	/*
 	audio_buffer *rb = NULL;
 	
 	printf("play in_wsq->wi %d\n", in_wsq->wi);
 
 	err = make_ab(
 		&rb,
-		24000,
+		23000,
 		1,
-		SND_PCM_FORMAT_FLOAT_LE,
+		SND_PCM_FORMAT_S16_LE,
 		am_sample,
-		in_wsq->wi / sizeof_pcm_format(SND_PCM_FORMAT_FLOAT_LE) 
+		in_wsq->wi / sizeof_pcm_format(SND_PCM_FORMAT_S16_LE) 
 	);
 	printf("play rb->size %d\n", rb->size);
 	memcpy(rb->buf, in_wsq->buf, in_wsq->wi);
 	convert_pcm_buf(&rb, 44100);
-	
 	printf("PLAY rb->size %d\n", rb->size);
-
-	write_file(rb->buf, rb->size, "./out.pcm");
-
+	write_file(rb->buf, rb->size, "out.pcm");
 	snd_pcm_writei(d->handle, rb->buf, get_cur_sample_size_ab(rb));
 	snd_pcm_drain(d->handle);
 	free_ab(rb);
+	*/
+
+	write_file(in_wsq->buf, in_wsq->wi, "out.pcm");
+	printf("wsq->wi %d\n", in_wsq->wi);
+	snd_pcm_writei(
+		d->handle,
+		in_wsq->buf, 
+		(in_wsq->wi / sizeof_pcm_format(SND_PCM_FORMAT_S16_LE))
+	);
+	clear_ws_queue(in_wsq);
+	snd_pcm_drain(d->handle);
 }
 
 int ws_loop(audio_device *recdev, audio_device *playdev)
@@ -279,7 +289,6 @@ int ws_loop(audio_device *recdev, audio_device *playdev)
 				break;
 			case WS_PLAY:
 				play(playdev);
-				clear_ws_queue(in_wsq);
 				wscs = WS_RECV;
 				break;
 			case WS_KILL:
