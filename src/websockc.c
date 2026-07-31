@@ -212,7 +212,7 @@ void free_client_connection_info(struct lws_client_connect_info *cc_info)
 
 int make_ws_queue(ws_queue **wsq, int size)
 {
-    *wsq = (*ws_queue)calloc(1, sizeof(ws_queue));
+    *wsq = (ws_queue*)calloc(1, sizeof(ws_queue));
     if (!(*wsq)){
         return -1;
     }
@@ -233,18 +233,18 @@ int push_ws_queue(ws_queue *wsq, char *from, int from_size)
     }   
     if ((wsq->wi + from_size) >= wsq->size){
         wsq->buf = (char*)realloc(wsq->buf, (wsq->wi + from_size + 1) * sizeof(char*));
-        if (!ws_buf){
+        if (!wsq->buf){
             return -1;
         }
     }
-    memcpy(wsq->wi, from, from_size);
+    memcpy(&wsq->buf[wsq->wi], from, from_size);
     wsq->wi += from_size;
     return 0;
 }
 
 void clear_ws_queue(ws_queue *wsq)
 {
-    memset(wsq->buf, 0, wsd->size);
+    memset(wsq->buf, 0, wsq->size);
     wsq->wi = 0;
 }
 

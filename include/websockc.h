@@ -83,5 +83,9 @@ int make_client_connection_info(
 void free_client_connection_info(struct lws_client_connect_info *cc_info);
 
 int make_ws_queue(ws_queue **wsq, int size);
+int push_ws_queue(ws_queue *wsq, char *from, int from_size);
+void clear_ws_queue(ws_queue *wsq);
+void free_ws_queue(ws_queue *wsq);
+
 
 #endif

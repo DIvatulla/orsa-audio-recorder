@@ -21,6 +21,8 @@
 #define MAIN_PCM_BUF_DURATION 10
 #define SAMPLE_PER_READ 1760
 
+const char endmsg[] = "END";
+
 static audio_device *recdev = NULL; 
 static audio_settings *settings = NULL;
 static audio_device *playdev = NULL;
@@ -38,7 +40,7 @@ static struct lws *client_wsi;
 int record(audio_device *d, audio_buffer *mb);
 void write_file(unsigned char *b, int size, char *filename);
 void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
-void ws_loop(audio_device *recdev, audio_device *playdev);
+int ws_loop(audio_device *recdev, audio_device *playdev);
 
 int ws_callback(
     struct lws *wsi, 
@@ -152,7 +154,6 @@ int main(int argc, char** argv)
 	free_proto_list(protocols);
 	free_context_creation_info(info);
 	free_client_connection_info(cc_info);
-	free(wsd.buf);
 	snd_config_update_free_global();
 
 	return 0;
@@ -200,13 +201,13 @@ int rec(audio_device *d)
 	convert_pcm_buf(&rb, 16000);
 	printf("REC rb->size %d\n", rb->size);
 	
-	err = push_ws_queue(wsq, rb->buf, rb->size);
+	err = push_ws_queue(out_wsq, rb->buf, rb->size);
 	if (err < 0){
 		return err;
 	}
 
 	free_ab(rb);
-	printf("rec is going; wsd->wi = %d\n", wsd->wi);
+	printf("rec is going; out_wsq->wi = %d\n", out_wsq->wi);
 	
 	return 0;
 }
@@ -221,9 +222,9 @@ int play(audio_device *d)
 		24000,
 		1,
 		SND_PCM_FORMAT_FLOAT_LE,
-		am_samples,
-		(wsq->wi / 24000)
-	)
+		am_sample,
+		(in_wsq->wi / 24000)
+	);
 
 	convert_pcm_buf(&rb, 44100);
 	printf("PLAY rb->size %d\n", rb->size);
@@ -238,20 +239,20 @@ int ws_loop(audio_device *recdev, audio_device *playdev)
 		16000 *
 		MAIN_PCM_BUF_DURATION;
 	int count = 0;
-	int old_out_wsq_wi = wsq->wi;
+	int old_out_wsq_wi = out_wsq->wi;
 
-	ws_state = WS_SEND;
+	wscs = WS_SEND;
 	for (;;){
 		lws_service(context, 0);
 
-		switch(ws_state){
+		switch(wscs){
 			case WS_SEND:
-				old_out_wsq_wi = wsq->wi
+				old_out_wsq_wi = out_wsq->wi;
 				rec(recdev);
-				count += wsq->wi - old_out_wsq_wi;
+				count += out_wsq->wi - old_out_wsq_wi;
 				if (count > rec_limit){
-					push_ws_queue(wsq, endmsg, 3);
-					ws_state = WS_RECV;
+					push_ws_queue(out_wsq, (char*)endmsg, 3);
+					wscs = WS_RECV;
 				}
 				lws_callback_on_writable(client_wsi);
 				break;
@@ -259,7 +260,7 @@ int ws_loop(audio_device *recdev, audio_device *playdev)
 				break;
 			case WS_PLAY:
 				play(playdev);
-				clear_ws_queue(wsq);
+				clear_ws_queue(in_wsq);
 				break;
 			case WS_KILL:
 				goto stop;
@@ -285,29 +286,29 @@ int ws_callback(
 		lwsl_user("Connected to server.\n");
 		break;
 	case LWS_CALLBACK_CLIENT_RECEIVE:
-		push_ws_queue(wsq, in, len);
-		printf("remaining packet size - %ld, wsq.wi - %d\n", lws_remaining_packet_payload(wsi), wsq->wi);
+		push_ws_queue(in_wsq, in, len);
+		printf("remaining packet size - %ld, in_wsq.wi - %d\n", lws_remaining_packet_payload(wsi), in_wsq->wi);
 		if ((!lws_remaining_packet_payload(wsi)) && lws_is_final_fragment(wsi)){
-			ws_state = WS_PLAY;
+			wscs = WS_PLAY;
 		}
 		break;
     case LWS_CALLBACK_CLIENT_WRITEABLE:
 		printf("Sending\n");
-		printf("wsd.wi %d\n", wsd.wi);
+		printf("out_wsd.wi %d\n", out_wsq->wi);
 		
-		int sent = lws_write(wsi, &wsd.buf[LWS_PRE], wsd.wi, LWS_WRITE_BINARY);
-		if (sent < wsd.wi){
+		int sent = lws_write(wsi, &out_wsq->buf[LWS_PRE], out_wsq->wi, LWS_WRITE_BINARY);
+		if (sent < out_wsq->wi){
 			lwsl_err("lws_write failed (%d)\n", sent);
-			ws_state = WS_KILL;
+			wscs = WS_KILL;
 			break;
 		}
 
 		lwsl_user("Sent %d bytes.\n", sent);
-		clear_ws_queue(wsq);
+		clear_ws_queue(out_wsq);
 		break;
 	case LWS_CALLBACK_CLIENT_CLOSED:
 		lwsl_user("Connection closed.\n");
-		ws_state = WS_KILL;
+		wscs = WS_KILL;
 		return 0;
 		break;
 	default:
