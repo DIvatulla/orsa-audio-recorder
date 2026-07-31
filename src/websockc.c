@@ -226,6 +226,8 @@ int make_ws_queue(ws_queue **wsq, int size)
         free(*wsq);
         return -2;
     }
+	
+	return 0;
 }
 
 int push_ws_queue(ws_queue *wsq, char *from, int from_size)
@@ -242,6 +244,7 @@ int push_ws_queue(ws_queue *wsq, char *from, int from_size)
     }
     memcpy(&wsq->buf[wsq->wi], from, from_size);
     wsq->wi += from_size;
+
     return 0;
 }
 

@@ -132,6 +132,7 @@ int main(int argc, char** argv)
 
 	err = make_ws_queue(&in_wsq, 655360);
 	if (err < 0){
+		printf("can't create in wsq\n");
 		return -1;
 	}
 	err = make_ws_queue(
@@ -140,6 +141,7 @@ int main(int argc, char** argv)
 		(sizeof_pcm_format(RECORD_FORMAT) * CHANNELS * SAMPLE_PER_READ)
 	);
 	if (err < 0){
+		printf("can't create out wsq\n");
 		return -1;
 	}
 	out_wsq->wi = LWS_PRE;
