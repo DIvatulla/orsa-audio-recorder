@@ -37,7 +37,7 @@ static struct lws_context *context = NULL;
 static struct lws_client_connect_info *cc_info = NULL;
 static struct lws *client_wsi;
 
-void clear_ws_queue_out(ws_queue *wsq);
+int push_ws_queue_out(ws_queue *wsq, char *from, int from_size);
 int record(audio_device *d, audio_buffer *mb);
 void write_file(unsigned char *b, int size, char *filename);
 void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
@@ -148,6 +148,9 @@ int main(int argc, char** argv)
 	out_wsq->wi = LWS_PRE;
 	
 	lws_service(context, 0);
+	lws_callback_on_writable(client_wsi);
+	lws_callback_on_writable(client_wsi);
+	lws_callback_on_writable(client_wsi);
 	ws_loop(recdev, playdev);
 
 	free_clargs(cli_arguments);
@@ -256,8 +259,8 @@ int ws_loop(audio_device *recdev, audio_device *playdev)
 				rec(recdev);
 				count += out_wsq->wi - old_out_wsq_wi;
 				if (count > rec_limit){
-					clear_ws_queue_out(out_wsq);
-					push_ws_queue(out_wsq, (char*)endmsg, 3);
+					clear_ws_queue(out_wsq);
+					push_ws_queue_out(out_wsq, (char*)endmsg, 3);
 					lws_callback_on_writable(client_wsi);
 					wscs = WS_RECV;
 				}
@@ -308,10 +311,14 @@ int ws_callback(
 		}
 		break;
     case LWS_CALLBACK_CLIENT_WRITEABLE:
+		if (wscs != WS_SEND){
+			break;
+		}
+
 		printf("Sending\n");
 		printf("out_wsd.wi %d\n", out_wsq->wi);
 		
-		int sent = lws_write(wsi, &out_wsq->buf[LWS_PRE], out_wsq->wi, LWS_WRITE_BINARY);
+		int sent = lws_write(wsi, &out_wsq->buf[LWS_PRE], (out_wsq->wi) - LWS_PRE, LWS_WRITE_BINARY);
 		if (sent < out_wsq->wi){
 			lwsl_err("lws_write failed (%d)\n", sent);
 			wscs = WS_KILL;
@@ -319,7 +326,7 @@ int ws_callback(
 		}
 
 		lwsl_user("Sent %d bytes.\n", sent);
-		clear_ws_queue_out(out_wsq);
+		clear_ws_queue(out_wsq);
 		break;
 	case LWS_CALLBACK_CLIENT_CLOSED:
 		lwsl_user("Connection closed.\n");
@@ -333,8 +340,20 @@ int ws_callback(
     return 0;
 }
 
-void clear_ws_queue_out(ws_queue *wsq)
+int push_ws_queue_out(ws_queue *wsq, char *from, int from_size)
 {
-	memset(wsq->buf, 0, wsq->size);
-    wsq->wi = LWS_PRE;
+	if ((wsq->wi + from_size) >= wsq->cap){
+        return -1;
+    }   
+    if ((wsq->wi + from_size) >= wsq->size){
+        wsq->buf = (char*)realloc(wsq->buf, (wsq->wi + from_size + 1) * sizeof(char*));
+        if (wsq->buf == NULL){
+            fprintf(stderr, "can't realloc queue while push\n");
+            return -1;
+        }
+    }
+    memcpy(&wsq->buf[LWS_PRE + wsq->wi], from, from_size);
+    wsq->wi += from_size;
+
+    return 0;
 }
