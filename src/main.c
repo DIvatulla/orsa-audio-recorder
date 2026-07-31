@@ -37,6 +37,7 @@ static struct lws_context *context = NULL;
 static struct lws_client_connect_info *cc_info = NULL;
 static struct lws *client_wsi;
 
+void clear_ws_queue_out(ws_queue *wsq);
 int record(audio_device *d, audio_buffer *mb);
 void write_file(unsigned char *b, int size, char *filename);
 void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
@@ -255,7 +256,9 @@ int ws_loop(audio_device *recdev, audio_device *playdev)
 				rec(recdev);
 				count += out_wsq->wi - old_out_wsq_wi;
 				if (count > rec_limit){
+					clear_ws_queue_out(out_wsq);
 					push_ws_queue(out_wsq, (char*)endmsg, 3);
+					lws_callback_on_writable(client_wsi);
 					wscs = WS_RECV;
 				}
 				lws_callback_on_writable(client_wsi);
@@ -316,7 +319,7 @@ int ws_callback(
 		}
 
 		lwsl_user("Sent %d bytes.\n", sent);
-		clear_ws_queue(out_wsq);
+		clear_ws_queue_out(out_wsq);
 		break;
 	case LWS_CALLBACK_CLIENT_CLOSED:
 		lwsl_user("Connection closed.\n");
@@ -328,4 +331,10 @@ int ws_callback(
     }
  
     return 0;
+}
+
+void clear_ws_queue_out(ws_queue *wsq)
+{
+	memset(wsq->buf, 0, wsq->size);
+    wsq->wi = LWS_PRE;
 }
