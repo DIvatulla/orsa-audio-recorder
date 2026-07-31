@@ -227,7 +227,7 @@ int rec(audio_device *d)
 
 int play(audio_device *d)
 {
-	int err;
+	int err, i;
 	/*
 	audio_buffer *rb = NULL;
 	
@@ -253,11 +253,14 @@ int play(audio_device *d)
 
 	write_file(in_wsq->buf, in_wsq->wi, "out.pcm");
 	printf("wsq->wi %d\n", in_wsq->wi);
-	snd_pcm_writei(
-		d->handle,
-		in_wsq->buf, 
-		(in_wsq->wi / sizeof_pcm_format(SND_PCM_FORMAT_S16_LE))
-	);
+	for (i = 0; i <= in_wsq->wi; i += 4096){
+		snd_pcm_writei(
+			d->handle,
+			&in_wsq->buf[i], 
+			(4096 / sizeof_pcm_format(SND_PCM_FORMAT_S16_LE))
+		);		
+	}
+	
 	clear_ws_queue(in_wsq);
 	snd_pcm_drain(d->handle);
 }
