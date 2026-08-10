@@ -35,7 +35,6 @@ static struct lws_context *context = NULL;
 static struct lws_client_connect_info *cc_info = NULL;
 static struct lws *client_wsi;
 
-int push_ws_queue_out(ws_queue *wsq, char *from, int from_size);
 int record(audio_device *d, audio_buffer *mb);
 void write_file(unsigned char *b, int size, char *filename);
 void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
@@ -188,6 +187,7 @@ void write_file(unsigned char *b, int size, char *filename)
 
 int rec(audio_device *d)
 {
+	ws_queue_item *new_queue_item;
 	audio_buffer *rb = NULL;
 	int ret, err;
 
@@ -215,8 +215,8 @@ int rec(audio_device *d)
 
 	convert_pcm_buf(&rb, 16000);
 	printf("REC rb->size %d\n", rb->size);
-	
-	err = push_ws_queue(out_wsq, rb->buf, rb->size);
+	make_ws_queue_item(&new_queue_item, rb->buf, rb->size);
+	err = push_ws_queue(out_wsq, &new_queue_item);
 	if (err < 0){
 		return err;
 	}
@@ -352,21 +352,3 @@ int ws_callback(
     return 0;
 }
 
-int push_ws_queue_out(ws_queue *wsq, char *from, int from_size)
-{
-	if ((wsq->wi + from_size) >= wsq->cap){
-        return -1;
-    }   
-    if ((wsq->wi + from_size) >= wsq->size){
-        wsq->buf = (char*)realloc(wsq->buf, (wsq->wi + from_size + 1) * sizeof(char*));
-        if (wsq->buf == NULL){
-            fprintf(stderr, "can't realloc queue while push\n");
-            return -1;
-        }
-    }
-    memcpy(&wsq->buf[LWS_PRE + wsq->wi], from, from_size);
-    wsq->wi += from_size;
-
-    return 0;
-}
-*/
