@@ -22,14 +22,12 @@
 #define SAMPLE_PER_READ 1760
 
 const char endmsg[] = "END";
+const char haltmsg[] = "HALT";
 
-static audio_device *recdev = NULL; 
-static audio_settings *settings = NULL;
-static audio_device *playdev = NULL;
-
-static volatile ws_state wscs = WS_NONE;
 static ws_queue *in_wsq = NULL;
 static ws_queue *out_wsq = NULL;
+
+static volatile ws_state wscs = WS_NONE;
 
 static ws_proto_list protocols = NULL;
 static struct lws_context_creation_info *info = NULL;
@@ -54,6 +52,19 @@ int ws_callback(
 
 int main(int argc, char** argv)
 {   
+	ws_queue_item *tmp = NULL;
+
+	make_ws_queue(&in_wsq);
+	make_ws_queue_item(&tmp, (unsigned char*)endmsg, strlen(endmsg));
+	push_ws_queue(in_wsq, &tmp);
+	free_ws_queue(in_wsq);
+
+	return 0;
+
+	audio_device *recdev = NULL; 
+	audio_settings *settings = NULL;
+	audio_device *playdev = NULL;
+
 	int err = 0;
 	char **cli_arguments;
 	
@@ -123,14 +134,14 @@ int main(int argc, char** argv)
 	if (err < 0){
 		return err;
 	}
-	
+
 	client_wsi = lws_client_connect_via_info(cc_info);
 	if (!client_wsi) {
 		fprintf(stderr, "lws_client_connect_via_info failed\n");
 		lws_context_destroy(context);
 		return -16;
 	}
-
+/*
 	err = make_ws_queue(&in_wsq, 655360);
 	if (err < 0){
 		printf("can't create in wsq\n");
@@ -146,17 +157,9 @@ int main(int argc, char** argv)
 		return -1;
 	}
 	out_wsq->wi = LWS_PRE;
-	
-	lws_service(context, 0);
-	lws_callback_on_writable(client_wsi);
-	lws_service(context, 0);
-	lws_callback_on_writable(client_wsi);
-	lws_service(context, 0);
-	lws_callback_on_writable(client_wsi);
-	lws_service(context, 0);
 
 	ws_loop(recdev, playdev);
-
+*/
 	free_clargs(cli_arguments);
 	free_as(settings);
 	free_ad(recdev);
@@ -366,3 +369,4 @@ int push_ws_queue_out(ws_queue *wsq, char *from, int from_size)
 
     return 0;
 }
+*/

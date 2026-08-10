@@ -29,11 +29,14 @@ typedef enum{
     WS_KILL
 } ws_state;
 
-typedef struct{
-    char *buf;
-    int wi;
+typedef struct ws_queue_item{
+    unsigned char *data;
     int size;
-    int cap;
+    struct ws_queue_item *next;
+} ws_queue_item;
+
+typedef struct{
+    ws_queue_item *head;
 } ws_queue;
 
 
@@ -83,9 +86,11 @@ int make_client_connection_info(
 
 void free_client_connection_info(struct lws_client_connect_info *cc_info);
 
-int make_ws_queue(ws_queue **wsq, int size);
-int push_ws_queue(ws_queue *wsq, char *from, int from_size);
-void clear_ws_queue(ws_queue *wsq);
+int make_ws_queue_item(ws_queue_item **wsqi, unsigned char *data, int data_size);
+void free_ws_queue_item(ws_queue_item *wsqi);
+int make_ws_queue(ws_queue **wsq);
+int push_ws_queue(ws_queue *wsq, ws_queue_item **item);
+int pop_ws_queue(ws_queue *wsq, ws_queue_item **item);
 void free_ws_queue(ws_queue *wsq);
 
 

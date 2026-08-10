@@ -210,52 +210,76 @@ void free_client_connection_info(struct lws_client_connect_info *cc_info)
     free(cc_info);
 }
 
-int make_ws_queue(ws_queue **wsq, int size)
+int make_ws_queue_item(ws_queue_item **wsqi, unsigned char *data, int data_size)
 {
-    *wsq = (ws_queue*)calloc(1, sizeof(ws_queue));
-    if ((*wsq) == NULL){
-        fprintf(stderr, "can't malloc ws queue\n");
+    *wsqi = (ws_queue_item*)calloc(1, sizeof(ws_queue_item));
+    if (!(*wsqi)){
         return -1;
     }
-    (*wsq)->size = size;
-    (*wsq)->cap = MAX_PAYLOAD;
-    
-    (*wsq)->buf = (char*)calloc(size, sizeof(char));
-    if (((*wsq)->buf) == NULL){
-        fprintf(stderr, "can't malloc ws queue buf\n");
-        free(*wsq);
-        return -2;
-    }
-	
-	return 0;
-}
-
-int push_ws_queue(ws_queue *wsq, char *from, int from_size)
-{
-    if ((wsq->wi + from_size) >= wsq->cap){
+    (*wsqi)->data = (unsigned char*)calloc(data_size, sizeof(char));
+    if (!((*wsqi)->data)){
         return -1;
-    }   
-    if ((wsq->wi + from_size) >= wsq->size){
-        wsq->buf = (char*)realloc(wsq->buf, (wsq->wi + from_size + 1) * sizeof(char*));
-        if (wsq->buf == NULL){
-            fprintf(stderr, "can't realloc queue while push\n");
-            return -1;
-        }
     }
-    memcpy(&wsq->buf[wsq->wi], from, from_size);
-    wsq->wi += from_size;
+    memcpy((*wsqi)->data, data, data_size);
+    (*wsqi)->size = data_size;
 
     return 0;
 }
 
-void clear_ws_queue(ws_queue *wsq)
+void free_ws_queue_item(ws_queue_item *wsqi)
 {
-    memset(wsq->buf, 0, wsq->size);
-    wsq->wi = 0;
+    wsqi->data ? free(wsqi->data) : 0;
+    free(wsqi);
+}
+
+int make_ws_queue(ws_queue **wsq)
+{
+    *wsq = (ws_queue*)calloc(1, sizeof(ws_queue));
+    if (!(*wsq)){
+        return -1;
+    }
+    (*wsq)->head = NULL;
+    return 0;
+}
+
+int push_ws_queue(ws_queue *wsq, ws_queue_item **item)
+{
+    (*item)->next = wsq->head;
+    wsq->head = *item;
+    return 0;
+}
+
+int pop_ws_queue(ws_queue *wsq, ws_queue_item **item)
+{
+    if (!wsq->head){
+        printf("Empty queue\n");
+        return -1;
+    }
+    if (item){
+        printf("Var to pop from queue is not empty\n");
+        return -1;
+    }
+
+    *item = wsq->head;
+    wsq->head = wsq->head->next;
+
+    return 0;
 }
 
 void free_ws_queue(ws_queue *wsq)
 {
-    free(wsq->buf);
+    ws_queue_item *tmp;
+
+    if (wsq->head){
+        while(wsq->head){
+            tmp = wsq->head;
+            wsq->head = wsq->head->next;
+            
+            if (tmp->data){
+                free(tmp->data);
+            } 
+            free(tmp);
+        }
+    }
     free(wsq);
 }
