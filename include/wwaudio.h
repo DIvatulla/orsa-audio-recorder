@@ -23,7 +23,8 @@ typedef struct {
 typedef enum {
 	am_sec = 0, //count frames by second
 	am_sample = 1,
-	am_frame = 2 //count frames by sample rate and amoutn of channels
+	am_frame = 2, //count frames by sample rate and amoutn of channels
+	am_byte = 3
 } audio_measure;
 
 typedef struct {

@@ -156,6 +156,46 @@ int make_ad(audio_device **d, char *name, audio_settings *s, snd_pcm_stream_t mo
 	return 0;
 }
 
+audio_buffer *rec_ad(audio_device *d)
+{
+	audio_buffer *rb = NULL;
+	int ret, err;
+
+	err = make_ab(
+		&rb,
+        get_rate_ad(d),
+        get_chan_ad(d), 
+        get_pfmt_ad(d),
+        am_sample,
+        SAMPLE_PER_READ
+	);
+	if (err < 0){
+		return NULL;
+	}
+
+	ret = snd_pcm_readi(
+		d->handle, 
+		rb->buf, 
+		snd_pcm_bytes_to_frames(d->handle, rb->size)
+	);
+	if (ret == -EPIPE){
+		snd_pcm_prepare(d->handle);
+	}
+	else if (ret < 0){
+		fprintf(stderr, "Error while recording\n");	
+		free_ab(rb);
+		return NULL;
+	}
+
+	return rb;
+}
+
+int play_ad(audio_device *d, audio_buffer *pb)
+{
+	int err;
+	snd_pcm_writei(d->handle, pb->buf, get_cur_sample_size_ab(pb));
+}
+
 unsigned int get_rate_ad(audio_device *d)
 {
 	unsigned int rate = 0;
@@ -252,6 +292,9 @@ unsigned int calc_buf_size_ab(audio_buffer *ab, audio_measure mu, int mod)
 			break;
 		case am_frame:
 			return pcm_byte_per_frame(ab->channels, ab->pcm_format) * mod;
+			break;
+		case am_byte:
+			return mod;
 			break;
 		default:
 			fprintf(stderr, "Unknown specifier for audio buffer memory allocation\n");

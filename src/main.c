@@ -24,8 +24,7 @@
 const char endmsg[] = "END";
 const char haltmsg[] = "HALT";
 
-static ws_queue *in_wsq = NULL;
-static ws_queue *out_wsq = NULL;
+static ws_queue *session_wsq = NULL;
 
 static volatile ws_state wscs = WS_NONE;
 
@@ -35,11 +34,16 @@ static struct lws_context *context = NULL;
 static struct lws_client_connect_info *cc_info = NULL;
 static struct lws *client_wsi;
 
+static int rec_limit = sizeof_pcm_format(RECORD_FORMAT) * 
+		CHANNELS * 
+		16000 *
+		MAIN_PCM_BUF_DURATION;
+
 int record(audio_device *d, audio_buffer *mb);
 void write_file(unsigned char *b, int size, char *filename);
 void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
-int ws_loop(audio_device *recdev, audio_device *playdev);
 
+int ws_loop(audio_device *recdev, audio_device *playdev);
 int ws_callback(
     struct lws *wsi, 
     enum lws_callback_reasons reason, 
@@ -47,7 +51,8 @@ int ws_callback(
     void *in, 
     size_t len
 );
-
+int push_session_ws_queue(audio_buffer *ab);
+int pop_session_ws_queue(audio_buffer *ab);
 
 int main(int argc, char** argv)
 {   
@@ -185,6 +190,7 @@ void write_file(unsigned char *b, int size, char *filename)
     printf("Saved\n");
 }
 
+/*
 int rec(audio_device *d)
 {
 	ws_queue_item *new_queue_item;
@@ -351,4 +357,92 @@ int ws_callback(
  
     return 0;
 }
+*/
 
+int ws_loop(audio_device *recdev, audio_device *playdev)
+{
+	audio_buffer *ab;
+	int count = 0;
+	int old_out_wsq_wi = out_wsq->wi;
+
+	wscs = WS_SEND;
+	for (;;){
+		lws_service(context, 0);
+		
+		switch(wscs){
+			case WS_SEND:
+				old_out_wsq_wi = out_wsq->wi;
+				count += out_wsq->wi - old_out_wsq_wi;
+				if (count > rec_limit){
+					wscs = WS_KILL;
+				}
+
+				ab = rec_ad(recdev);
+				if (!ab){
+					wscs = WS_END;
+					break;
+				}
+				convert_pcm_buf(&rb, 16000);
+				push_session_ws_queue(rb);
+				free(rb);
+				lws_callback_on_writable(client_wsi);
+				break;
+			case WS_RECV:
+				break;
+			case WS_PLAY:
+				pop_session_ws_queue(&ab);
+				play_ad(playdev, ab);
+				free(ab);
+				wscs = WS_RECV;
+				break;
+			case WS_KILL:
+				break;
+			case WS_NONE:
+				break;
+		}
+	}
+}
+
+int push_session_ws_queue(audio_buffer *ab)
+{
+	int err = 0;
+	ws_queue_item *new = NULL;
+
+	err = make_ws_queue_item(&new, ab->buf, ab->size);
+	if (err < 0){
+		return err;
+	}
+
+	push_ws_queue(session_wsq, &new);
+
+	return 0;
+}
+
+int pop_session_ws_queue(audio_buffer **ab)
+{
+	int err = 0;
+	ws_queue_item *new = NULL;
+
+	if (*ab){
+		fprintf(stderr, "pop_session_ws_queue: ab is not a null\n");
+		return -1;
+	}
+
+	pop_ws_queue(session_wsq, &new);
+	
+	err = make_ab(
+		ab,
+		24000,
+		1,
+		SND_PCM_FORMAT_FLOAT_LE,
+		am_byte,
+		new->size
+	);
+	if (err < 0){
+		return err;
+	}
+
+	memcpy((*ab)->buf, new->data, new->size);
+	free(new);
+	return 0;
+}
