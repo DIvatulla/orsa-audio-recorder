@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include <speex/speex_resampler.h> 
 
+#define NUM_THREADS 4
+
 #ifndef WF 
 #define WF 0
 #endif
@@ -21,11 +23,13 @@
 #define MAIN_PCM_BUF_DURATION 3
 #define SAMPLE_PER_READ 1760
 
-const char endmsg[] = "END";
-const char haltmsg[] = "HALT";
+char **cli_arguments;
+pthread_t thr[NUM_THREADS];
 
 static ws_queue *session_wsq = NULL;
 static volatile ws_state wscs = WS_NONE;
+const char endmsg[] = "END";
+const char haltmsg[] = "HALT";
 
 static ws_proto_list protocols = NULL;
 static struct lws_context_creation_info *info = NULL;
@@ -33,9 +37,10 @@ static struct lws_context *context = NULL;
 static struct lws_client_connect_info *cc_info = NULL;
 static struct lws *client_wsi;
 
-int record(audio_device *d, audio_buffer *mb);
+static int ws_conn_established_flag = 0;
+static int ws_conn_writable_flag = 0;
+
 void write_file(unsigned char *b, int size, char *filename);
-void play_mp3(audio_device *d, mpeg_dec *mdmp3, lame_mp3_buf *lb, audio_buffer *rb);
 
 int ws_loop(audio_device *recdev, audio_device *playdev);
 int ws_callback(
@@ -54,7 +59,6 @@ int main(int argc, char** argv)
 	audio_settings *settings = NULL;
 	audio_device *playdev = NULL;
 	int err = 0;
-	char **cli_arguments;
 	
 	cli_arguments = parse_clargs(argc, argv);
 	if (cli_arguments == NULL){
@@ -87,50 +91,9 @@ int main(int argc, char** argv)
 		return err;
 	}
 
-	//Websocket data intialization
-	err = make_proto_list(
-		&protocols, 
-		"\0", 
-		&ws_callback, 
-		LWS_PRE + 2, 
-		MAX_PAYLOAD / 10
-	);
-	if (err < 0){
-		return err;
-	}
-
-	err = make_context_creation_info(&info, protocols);
-	if (err < 0){
-		return err;
-	}
-
-	context = lws_create_context(info);
-	if (!context){
-		printf("lws init failed\n");
-	}
-
-	err = make_client_connection_info(
-		&cc_info, 
-		context, 
-		protocols,
-		(cli_arguments[WS_HOST] ? cli_arguments[WS_HOST] : "127.0.0.1"),
-		(cli_arguments[WS_PORT] ? atoi(cli_arguments[WS_PORT]) : 9000),
-		(cli_arguments[WS_PATH] ? cli_arguments[WS_PATH] : "/"),
-		"\0",
-		"\0"
-	);
-	if (err < 0){
-		return err;
-	}
-
-	client_wsi = lws_client_connect_via_info(cc_info);
-	if (!client_wsi) {
-		fprintf(stderr, "lws_client_connect_via_info failed\n");
-		lws_context_destroy(context);
-		return -16;
-	}
-
 	make_ws_queue(&session_wsq);
+
+	pthread_create(&thr[0], NULL, &ws_thread, NULL);
 
 	free_clargs(cli_arguments);
 	free_as(settings);
@@ -201,4 +164,102 @@ int pop_session_ws_queue(audio_buffer **ab)
 	free_ws_queue_item(new);
 
 	return 0;
+}
+
+void *ws_thread(void *arg)
+{
+	ws_proto_list protocols = NULL;
+	lws_context_creation_info *info = NULL;
+	lws_context *context = NULL;
+	lws_client_connect_info *cc_info = NULL;
+	lws *client_wsi = NULL;
+	int err;
+
+	//Websocket data intialization
+	err = make_proto_list(
+		&protocols, 
+		"\0", 
+		&ws_callback, 
+		LWS_PRE + 2, 
+		MAX_PAYLOAD / 10
+	);
+	if (err < 0){
+		exit(err);
+	}
+
+	err = make_context_creation_info(&info, protocols);
+	if (err < 0){
+		exit(err);
+	}
+
+	context = lws_create_context(info);
+	if (!context){
+		printf("lws init failed\n");
+		exit(-1);
+	}
+
+	err = make_client_connection_info(
+		&cc_info, 
+		context, 
+		protocols,
+		(cli_arguments[WS_HOST] ? cli_arguments[WS_HOST] : "127.0.0.1"),
+		(cli_arguments[WS_PORT] ? atoi(cli_arguments[WS_PORT]) : 9000),
+		(cli_arguments[WS_PATH] ? cli_arguments[WS_PATH] : "/"),
+		"\0",
+		"\0"
+	);
+	if (err < 0){
+		exit(err);
+	}
+	
+	client_wsi = lws_client_connect_via_info(cc_info);
+	if (!client_wsi) {
+		fprintf(stderr, "lws_client_connect_via_info failed\n");
+		lws_context_destroy(context);
+		exit(-2);
+	}
+
+	while (!ws_conn_is_ready()){
+		lws_service(context, 0);
+	}
+
+
+}
+
+int ws_callback(
+    struct lws *wsi, 
+    enum lws_callback_reasons reason, 
+    void *user, 
+    void *in, 
+    size_t len
+){
+	switch(reason){
+	case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+		lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char *)in : "(null)");
+		break;	
+	case LWS_CALLBACK_CLIENT_ESTABLISHED:
+		ws_conn_established_flag = 1;
+		lwsl_user("Connected to server.\n");
+		break;
+	case LWS_CALLBACK_CLIENT_RECEIVE:
+		break;
+    case LWS_CALLBACK_CLIENT_WRITEABLE:
+		ws_conn_writable_flag = 1;
+
+			
+		break;
+	case LWS_CALLBACK_CLIENT_CLOSED:
+		lwsl_user("Connection closed.\n");
+		wscs = WS_KILL;
+		break;
+	default:
+		break;
+    }
+ 
+    return 0;
+}
+
+int ws_conn_is_ready()
+{
+	return ws_conn_established_flag && ws_conn_writable_flag;
 }

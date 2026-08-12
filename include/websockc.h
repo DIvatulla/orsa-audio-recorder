@@ -38,6 +38,7 @@ typedef struct ws_queue_item{
 typedef struct{
     ws_queue_item *head;
 	ws_queue_item *tail;
+    pthread_mutex_t *mutex;
 } ws_queue;
 
 
