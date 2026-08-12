@@ -51,6 +51,8 @@ void free_as(audio_settings *s);
 
 int init_ad(audio_device *d, char *name, audio_settings *s, snd_pcm_stream_t mode);
 int make_ad(audio_device **d, char *name, audio_settings *s, snd_pcm_stream_t mode);
+audio_buffer *rec_ad(audio_device *d, int sample_amount);
+int play_ad(audio_device *d, audio_buffer *pb);
 unsigned int get_rate_ad(audio_device *d);
 unsigned int get_chan_ad(audio_device *d);
 snd_pcm_format_t get_pfmt_ad(audio_device *d);

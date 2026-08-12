@@ -239,13 +239,20 @@ int make_ws_queue(ws_queue **wsq)
         return -1;
     }
     (*wsq)->head = NULL;
+    (*wsq)->tail = (*wsq)->head;
     return 0;
 }
 
 int push_ws_queue(ws_queue *wsq, ws_queue_item **item)
 {
-    (*item)->next = wsq->head;
-    wsq->head = *item;
+	if (!wsq->head){
+		wsq->head = wsq->tail = *item;
+	}
+	else{
+		wsq->tail->next = *item;
+		wsq->tail = *item;
+	}
+	wsq->tail->next = NULL;
     return 0;
 }
 
@@ -255,7 +262,7 @@ int pop_ws_queue(ws_queue *wsq, ws_queue_item **item)
         printf("Empty queue\n");
         return -1;
     }
-    if (item){
+    if (*item){
         printf("Var to pop from queue is not empty\n");
         return -1;
     }

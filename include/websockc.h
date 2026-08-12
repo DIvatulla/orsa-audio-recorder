@@ -37,6 +37,7 @@ typedef struct ws_queue_item{
 
 typedef struct{
     ws_queue_item *head;
+	ws_queue_item *tail;
 } ws_queue;
 
 

@@ -156,7 +156,7 @@ int make_ad(audio_device **d, char *name, audio_settings *s, snd_pcm_stream_t mo
 	return 0;
 }
 
-audio_buffer *rec_ad(audio_device *d)
+audio_buffer *rec_ad(audio_device *d, int sample_amount)
 {
 	audio_buffer *rb = NULL;
 	int ret, err;
@@ -167,12 +167,14 @@ audio_buffer *rec_ad(audio_device *d)
         get_chan_ad(d), 
         get_pfmt_ad(d),
         am_sample,
-        SAMPLE_PER_READ
+		sample_amount
 	);
 	if (err < 0){
+		fprintf(stderr, "rec_ad: make_ab fail\n");
 		return NULL;
 	}
 
+	printf("snd_pcm_bytes_to_frames(d->handle, rb->size) = %d\n",  snd_pcm_bytes_to_frames(d->handle, rb->size));
 	ret = snd_pcm_readi(
 		d->handle, 
 		rb->buf, 
@@ -222,6 +224,7 @@ void free_ad(audio_device *d)
 	d->name ? free(d->name) : 0;
 	d->params ? snd_pcm_hw_params_free(d->params) : 0;
     d->handle ? snd_pcm_close(d->handle) : 0;
+	free(d);
 }
 
 int init_ab(
