@@ -23,6 +23,14 @@ unsigned int pcm_byte_per_second(
 	return pcm_byte_per_frame(ch, pfmt) * sr;
 }
 
+unsigned int pcm_byte_per_usecond(
+	unsigned int sr,
+	unsigned int ch,
+	snd_pcm_format_t pfmt)
+{
+	return pcm_byte_per_frame(ch, pfmt) * (sr / 1000);
+}
+
 int init_as(audio_settings *s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
 {
 	if (s == NULL) {
@@ -135,7 +143,6 @@ int init_ad(audio_device *d, char *name, audio_settings *s, snd_pcm_stream_t mod
 
     return 0;
 }
-
 
 int make_ad(audio_device **d, char *name, audio_settings *s, snd_pcm_stream_t mode)
 {
@@ -286,6 +293,12 @@ unsigned int calc_buf_size_ab(audio_buffer *ab, audio_measure mu, int mod)
 	switch (mu){
 		case am_sec:
 			return pcm_byte_per_second(
+				ab->sample_rate, 
+				ab->channels, 
+				ab->pcm_format) * mod;
+			break;
+		case am_usec:
+			return pcm_byte_per_usecond(
 				ab->sample_rate, 
 				ab->channels, 
 				ab->pcm_format) * mod;

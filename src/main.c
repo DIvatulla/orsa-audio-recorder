@@ -10,21 +10,27 @@
 #include <unistd.h>
 #include <speex/speex_resampler.h> 
 
-#define NUM_THREADS 4
-
 #ifndef WF 
 #define WF 0
 #endif
-#define NUM_THREADS 1
 
-#define SAMPLE_RATE 44100
-#define CHANNELS 1
-#define RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
-#define MAIN_PCM_BUF_DURATION 3
-#define SAMPLE_PER_READ 1760
+#define LOCAL_SAMPLE_RATE 44100
+#define LOCAL_CHANNELS 1
+#define LOCAL_RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
+#define REC_PCM_BUF_DURATION 10 //microseconds
+#define MAIN_PCM_BUF_DURATION 10000 //REC_PCM_BUF_DURATION * 1000 * 10sec
 
-char **cli_arguments;
-pthread_t thr[NUM_THREADS];
+#define SERVER_SAMPLE_RATE 24000
+#define SERVER_CHANNELS 1
+#define SERVER_RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
+
+
+static char **cli_arguments;
+static pthread_t thr[NUM_THREADS];
+
+static audio_device *recdev = NULL; 
+static audio_settings *settings = NULL;
+static audio_device *playdev = NULL;
 
 static ws_queue *session_wsq = NULL;
 static volatile ws_state wscs = WS_NONE;
@@ -55,9 +61,6 @@ int pop_session_ws_queue(audio_buffer **ab);
 
 int main(int argc, char** argv)
 {   
-	audio_device *recdev = NULL; 
-	audio_settings *settings = NULL;
-	audio_device *playdev = NULL;
 	int err = 0;
 	
 	cli_arguments = parse_clargs(argc, argv);
@@ -90,19 +93,64 @@ int main(int argc, char** argv)
 	if (err < 0){
 		return err;
 	}
+	
+	//Websocket data intialization
+	err = make_proto_list(
+		&protocols, 
+		"\0", 
+		&ws_callback, 
+		LWS_PRE + 2, 
+		MAX_PAYLOAD / 10
+	);
+	if (err < 0){
+		exit(err);
+	}
 
-	make_ws_queue(&session_wsq);
+	err = make_context_creation_info(&info, protocols);
+	if (err < 0){
+		exit(err);
+	}
 
-	pthread_create(&thr[0], NULL, &ws_thread, NULL);
+	context = lws_create_context(info);
+	if (!context){
+		printf("lws init failed\n");
+		exit(-1);
+	}
+
+	err = make_client_connection_info(
+		&cc_info, 
+		context, 
+		protocols,
+		(cli_arguments[WS_HOST] ? cli_arguments[WS_HOST] : "127.0.0.1"),
+		(cli_arguments[WS_PORT] ? atoi(cli_arguments[WS_PORT]) : 9000),
+		(cli_arguments[WS_PATH] ? cli_arguments[WS_PATH] : "/"),
+		"\0",
+		"\0"
+	);
+	if (err < 0){
+		exit(err);
+	}
+	
+	client_wsi = lws_client_connect_via_info(cc_info);
+	if (!client_wsi) {
+		fprintf(stderr, "lws_client_connect_via_info failed\n");
+		lws_context_destroy(context);
+		exit(-2);
+	}
+
+	while (!ws_conn_is_ready()){
+		lws_service(context, 0);
+	}
 
 	free_clargs(cli_arguments);
 	free_as(settings);
 	free_ad(recdev);
 	free_ad(playdev);
-	//free_proto_list(protocols);
-	//free_context_creation_info(info);
-	//free_client_connection_info(cc_info);
 	snd_config_update_free_global();
+
+	free_proto_list(protocols);
+	free_context_creation_info(info);
+	free_client_connection_info(cc_info);
 
 	return 0;
 }
@@ -166,66 +214,6 @@ int pop_session_ws_queue(audio_buffer **ab)
 	return 0;
 }
 
-void *ws_thread(void *arg)
-{
-	ws_proto_list protocols = NULL;
-	lws_context_creation_info *info = NULL;
-	lws_context *context = NULL;
-	lws_client_connect_info *cc_info = NULL;
-	lws *client_wsi = NULL;
-	int err;
-
-	//Websocket data intialization
-	err = make_proto_list(
-		&protocols, 
-		"\0", 
-		&ws_callback, 
-		LWS_PRE + 2, 
-		MAX_PAYLOAD / 10
-	);
-	if (err < 0){
-		exit(err);
-	}
-
-	err = make_context_creation_info(&info, protocols);
-	if (err < 0){
-		exit(err);
-	}
-
-	context = lws_create_context(info);
-	if (!context){
-		printf("lws init failed\n");
-		exit(-1);
-	}
-
-	err = make_client_connection_info(
-		&cc_info, 
-		context, 
-		protocols,
-		(cli_arguments[WS_HOST] ? cli_arguments[WS_HOST] : "127.0.0.1"),
-		(cli_arguments[WS_PORT] ? atoi(cli_arguments[WS_PORT]) : 9000),
-		(cli_arguments[WS_PATH] ? cli_arguments[WS_PATH] : "/"),
-		"\0",
-		"\0"
-	);
-	if (err < 0){
-		exit(err);
-	}
-	
-	client_wsi = lws_client_connect_via_info(cc_info);
-	if (!client_wsi) {
-		fprintf(stderr, "lws_client_connect_via_info failed\n");
-		lws_context_destroy(context);
-		exit(-2);
-	}
-
-	while (!ws_conn_is_ready()){
-		lws_service(context, 0);
-	}
-
-
-}
-
 int ws_callback(
     struct lws *wsi, 
     enum lws_callback_reasons reason, 
@@ -246,7 +234,9 @@ int ws_callback(
     case LWS_CALLBACK_CLIENT_WRITEABLE:
 		ws_conn_writable_flag = 1;
 
+		if (session_wsq->item_count == 24){
 			
+		}
 		break;
 	case LWS_CALLBACK_CLIENT_CLOSED:
 		lwsl_user("Connection closed.\n");
@@ -257,6 +247,20 @@ int ws_callback(
     }
  
     return 0;
+}
+
+int ws_loop(lws_context *context)
+{
+	wscs = WS_SEND;
+
+	while (wscs != WS_KILL)
+	{
+		switch(wscs){
+			case WS_SEND:
+				
+				break;
+		}
+	}
 }
 
 int ws_conn_is_ready()
