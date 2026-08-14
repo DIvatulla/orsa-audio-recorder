@@ -210,7 +210,7 @@ void free_client_connection_info(struct lws_client_connect_info *cc_info)
     free(cc_info);
 }
 
-int make_ws_queue_item(ws_queue_item **wsqi, unsigned char *data, int data_size)
+int make_ws_queue_item(ws_queue_item **wsqi, unsigned char *data, int data_size) //creates new queue item ponting to argument
 {
     *wsqi = (ws_queue_item*)calloc(1, sizeof(ws_queue_item));
     if (!(*wsqi)){
@@ -220,7 +220,8 @@ int make_ws_queue_item(ws_queue_item **wsqi, unsigned char *data, int data_size)
     if (!((*wsqi)->data)){
         return -1;
     }
-    memcpy((*wsqi)->data, data, data_size);
+
+    (*wsqi)->data = data;
     (*wsqi)->size = data_size;
 
     return 0;
@@ -240,6 +241,10 @@ int make_ws_queue(ws_queue **wsq)
     }
     (*wsq)->head = NULL;
     (*wsq)->tail = (*wsq)->head;
+
+    pthread_mutex_init(&((*wsq)->mutex), NULL);
+    pthread_cond_init(&((*wsq)->cond), NULL);
+
     return 0;
 }
 

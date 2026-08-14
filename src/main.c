@@ -24,7 +24,6 @@
 #define SERVER_CHANNELS 1
 #define SERVER_RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
 
-
 static char **cli_arguments;
 static pthread_t thr[NUM_THREADS];
 
@@ -58,6 +57,8 @@ int ws_callback(
 );
 int push_session_ws_queue(audio_buffer *ab);
 int pop_session_ws_queue(audio_buffer **ab);
+
+static pthread_t thr[2];
 
 int main(int argc, char** argv)
 {   
@@ -94,54 +95,6 @@ int main(int argc, char** argv)
 		return err;
 	}
 	
-	//Websocket data intialization
-	err = make_proto_list(
-		&protocols, 
-		"\0", 
-		&ws_callback, 
-		LWS_PRE + 2, 
-		MAX_PAYLOAD / 10
-	);
-	if (err < 0){
-		exit(err);
-	}
-
-	err = make_context_creation_info(&info, protocols);
-	if (err < 0){
-		exit(err);
-	}
-
-	context = lws_create_context(info);
-	if (!context){
-		printf("lws init failed\n");
-		exit(-1);
-	}
-
-	err = make_client_connection_info(
-		&cc_info, 
-		context, 
-		protocols,
-		(cli_arguments[WS_HOST] ? cli_arguments[WS_HOST] : "127.0.0.1"),
-		(cli_arguments[WS_PORT] ? atoi(cli_arguments[WS_PORT]) : 9000),
-		(cli_arguments[WS_PATH] ? cli_arguments[WS_PATH] : "/"),
-		"\0",
-		"\0"
-	);
-	if (err < 0){
-		exit(err);
-	}
-	
-	client_wsi = lws_client_connect_via_info(cc_info);
-	if (!client_wsi) {
-		fprintf(stderr, "lws_client_connect_via_info failed\n");
-		lws_context_destroy(context);
-		exit(-2);
-	}
-
-	while (!ws_conn_is_ready()){
-		lws_service(context, 0);
-	}
-
 	free_clargs(cli_arguments);
 	free_as(settings);
 	free_ad(recdev);
@@ -186,32 +139,102 @@ int pop_session_ws_queue(audio_buffer **ab)
 {
 	int err = 0;
 	ws_queue_item *new = NULL;
+	audio_buffer *ab = NULL;
 
-	if (*ab){
-		fprintf(stderr, "pop_session_ws_queue: ab is not a null\n");
+	ab = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	if (!ab){
 		return -1;
+		fprintf(stderr, "pop_session_ws_queue: can't malloc audio buffer\n");
 	}
 
 	pop_ws_queue(session_wsq, &new);
-	
 	printf("pop_session_ws_queue: new->size-%d\n", new->size);	
-	err = make_ab(
-		ab,
-		SAMPLE_RATE,
-		1,
-		RECORD_FORMAT,
-		am_byte,
-		new->size
-	);
-	if (err < 0){
-		return err;
-	}
+	copy_queue_to_ab(new, *ab);
 	printf("pop_session_ws_queue: ab->size-%d\n", (*ab)->size);	
-
-	memcpy((*ab)->buf, new->data, new->size);
-	free_ws_queue_item(new);
+	free(new);
 
 	return 0;
+}
+
+void copy_queue_to_ab(ws_queue_item *wsqi, audio_buffer *ab)
+{
+	ab->buf = wsqi->data;
+	ab->size = wsqi->size;
+	ab->wi = 0;
+	ab->ri = 0;
+	ab->sample_rate = SERVER_SAMPLE_RATE;
+	ab->channels = SERVER_CHANNELS;
+	ab->pcm_format = SERVER_RECORD_FORMAT;
+}
+
+void *ws_thread_cleanup()
+{
+
+}
+
+void *ws_thread(void *arg)
+{
+	int err;
+
+	//Websocket data initialization
+	err = make_proto_list(
+		&protocols, 
+		"\0", 
+		&ws_callback, 
+		LWS_PRE + 2, 
+		MAX_PAYLOAD / 10
+	);
+	if (err < 0){
+		fprintf(stderr, "ws_thread: can't create proto list\n");
+		pthread_exit(NULL);
+	}
+
+	err = make_context_creation_info(&info, protocols);
+	if (err < 0){
+		fprintf(stderr, "ws_thread: can't create context creation info\n");
+		pthread_exit(NULL);
+	}
+
+	context = lws_create_context(info);
+	if (!context){
+		printf("ws_thread: can't create context\n");
+		pthread_exit(NULL);
+	}
+
+	err = make_client_connection_info(
+		&cc_info, 
+		context, 
+		protocols,
+		(cli_arguments[WS_HOST] ? cli_arguments[WS_HOST] : "127.0.0.1"),
+		(cli_arguments[WS_PORT] ? atoi(cli_arguments[WS_PORT]) : 9000),
+		(cli_arguments[WS_PATH] ? cli_arguments[WS_PATH] : "/"),
+		"\0",
+		"\0"
+	);
+	if (err < 0){
+		printf("ws_thread: can't create client connection info\n");
+		pthread_exit(NULL);
+	}
+	
+	client_wsi = lws_client_connect_via_info(cc_info);
+	if (!client_wsi){
+		fprintf(stderr, "ws_thread: lws_client_connect_via_info failed\n");
+		lws_context_destroy(context);
+		pthread_exit(NULL);
+	}
+
+	while (!ws_conn_is_ready()){
+		lws_service(context, 0);
+	}
+
+	make_ws_queue();
+
+	while(wscs != WS_KILL){
+		switch (wscs){
+		case WS_SEND:
+			
+		}
+	}
 }
 
 int ws_callback(
@@ -232,7 +255,10 @@ int ws_callback(
 	case LWS_CALLBACK_CLIENT_RECEIVE:
 		break;
     case LWS_CALLBACK_CLIENT_WRITEABLE:
-		ws_conn_writable_flag = 1;
+		if (!ws_conn_writable_flag){
+			ws_conn_writable_flag = 1;
+			break
+		}
 
 		if (session_wsq->item_count == 24){
 			
@@ -257,7 +283,6 @@ int ws_loop(lws_context *context)
 	{
 		switch(wscs){
 			case WS_SEND:
-				
 				break;
 		}
 	}

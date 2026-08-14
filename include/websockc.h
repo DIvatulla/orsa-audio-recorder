@@ -36,6 +36,8 @@ typedef struct ws_queue_item{
 } ws_queue_item;
 
 typedef struct{
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
     ws_queue_item *head;
 	ws_queue_item *tail;
     int item_count;
