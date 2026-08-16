@@ -43,7 +43,6 @@ void free_str_fields(int amount, ...)
     va_start(list, amount);
     for (i = 0; i < amount; i++){
         field = va_arg(list, char**);
-        printf("another field in struct to be freed - %s\n", *field);
         if ((*field) != NULL){
             free(*field);
         }

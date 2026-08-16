@@ -17,21 +17,21 @@
 #define LOCAL_SAMPLE_RATE 44100
 #define LOCAL_CHANNELS 1
 #define LOCAL_RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
-#define REC_PCM_BUF_DURATION 10 //microseconds
-#define MAIN_PCM_BUF_DURATION 10000 //REC_PCM_BUF_DURATION * 1000 * 10sec
+
+#define PER_READ_PCM_BUF_DURATION 30 //microseconds
+#define MAIN_PCM_BUF_DURATION 60 //seconds
 
 #define SERVER_SAMPLE_RATE 24000
 #define SERVER_CHANNELS 1
 #define SERVER_RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
 
 static char **cli_arguments;
-static pthread_t thr[NUM_THREADS];
 
 static audio_device *recdev = NULL; 
 static audio_settings *settings = NULL;
 static audio_device *playdev = NULL;
 
-static ws_queue *session_wsq = NULL;
+static volatile ws_queue *session_wsq = NULL;
 static volatile ws_state wscs = WS_NONE;
 const char endmsg[] = "END";
 const char haltmsg[] = "HALT";
@@ -58,10 +58,9 @@ int ws_callback(
 int push_session_ws_queue(audio_buffer *ab);
 int pop_session_ws_queue(audio_buffer **ab);
 
-static pthread_t thr[2];
-
 int main(int argc, char** argv)
 {   
+	pthread_t wst; //websocket_thread
 	int err = 0;
 	
 	cli_arguments = parse_clargs(argc, argv);
@@ -95,87 +94,6 @@ int main(int argc, char** argv)
 		return err;
 	}
 	
-	free_clargs(cli_arguments);
-	free_as(settings);
-	free_ad(recdev);
-	free_ad(playdev);
-	snd_config_update_free_global();
-
-	free_proto_list(protocols);
-	free_context_creation_info(info);
-	free_client_connection_info(cc_info);
-
-	return 0;
-}
-
-void write_file(unsigned char *b, int size, char *filename)
-{
-	FILE *f = fopen(filename, "wb");
-    if (!f) { 
-		fprintf(stderr, "fopen");
-	}
-    fwrite(b, sizeof(char), size, f);
-    fclose(f);
-
-    printf("Saved\n");
-}
-
-int push_session_ws_queue(audio_buffer *ab)
-{
-	int err = 0;
-	ws_queue_item *new = NULL;
-
-	err = make_ws_queue_item(&new, ab->buf, ab->size);
-	if (err < 0){
-		return err;
-	}
-
-	push_ws_queue(session_wsq, &new);
-
-	return 0;
-}
-
-int pop_session_ws_queue(audio_buffer **ab)
-{
-	int err = 0;
-	ws_queue_item *new = NULL;
-	audio_buffer *ab = NULL;
-
-	ab = (audio_buffer*)calloc(1, sizeof(audio_buffer));
-	if (!ab){
-		return -1;
-		fprintf(stderr, "pop_session_ws_queue: can't malloc audio buffer\n");
-	}
-
-	pop_ws_queue(session_wsq, &new);
-	printf("pop_session_ws_queue: new->size-%d\n", new->size);	
-	copy_queue_to_ab(new, *ab);
-	printf("pop_session_ws_queue: ab->size-%d\n", (*ab)->size);	
-	free(new);
-
-	return 0;
-}
-
-void copy_queue_to_ab(ws_queue_item *wsqi, audio_buffer *ab)
-{
-	ab->buf = wsqi->data;
-	ab->size = wsqi->size;
-	ab->wi = 0;
-	ab->ri = 0;
-	ab->sample_rate = SERVER_SAMPLE_RATE;
-	ab->channels = SERVER_CHANNELS;
-	ab->pcm_format = SERVER_RECORD_FORMAT;
-}
-
-void *ws_thread_cleanup()
-{
-
-}
-
-void *ws_thread(void *arg)
-{
-	int err;
-
 	//Websocket data initialization
 	err = make_proto_list(
 		&protocols, 
@@ -223,19 +141,101 @@ void *ws_thread(void *arg)
 		pthread_exit(NULL);
 	}
 
+	pthread_create(&wst, NULL, &ws_thread, NULL);
+	pthread_join(wst, NULL);
+
+	free_clargs(cli_arguments);
+	free_as(settings);
+	free_ad(recdev);
+	free_ad(playdev);
+	snd_config_update_free_global();
+	free_proto_list(protocols);
+	free_context_creation_info(info);
+	free_client_connection_info(cc_info);
+
+	return 0;
+}
+
+void write_file(unsigned char *b, int size, char *filename)
+{
+	FILE *f = fopen(filename, "wb");
+    if (!f) { 
+		fprintf(stderr, "fopen");
+	}
+    fwrite(b, sizeof(char), size, f);
+    fclose(f);
+
+    printf("Saved\n");
+}
+
+int push_session_ws_queue(audio_buffer *ab)
+{
+	int err = 0;
+	ws_queue_item *new = NULL;
+
+	err = make_ws_queue_item(&new, ab->buf, ab->size);
+	if (err < 0){
+		return err;
+	}
+
+	push_ws_queue(session_wsq, &new);
+	free(ab);
+
+	return 0;
+}
+
+int pop_session_ws_queue(audio_buffer **ab)
+{
+	int err = 0;
+	ws_queue_item *last = NULL;
+	audio_buffer *ab = NULL;
+
+	ab = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	if (!ab){
+		return -1;
+		fprintf(stderr, "pop_session_ws_queue: can't malloc audio buffer\n");
+	}
+
+	pop_ws_queue(session_wsq, &last);
+	printf("pop_session_ws_queue: new->size-%d\n", new->size);	
+	
+	ab->buf = last->data;
+	ab->size = last->size;
+	ab->wi = 0;
+	ab->ri = 0;
+	ab->sample_rate = SERVER_SAMPLE_RATE;
+	ab->channels = SERVER_CHANNELS;
+	ab->pcm_format = SERVER_RECORD_FORMAT;
+	free(new);
+
+	printf("pop_session_ws_queue: ab->size-%d\n", (*ab)->size);	
+	
+	return 0;
+}
+
+void *ws_thread(void *arg)
+{
+	int err;
+
+
 	while (!ws_conn_is_ready()){
 		lws_service(context, 0);
 	}
 
-	make_ws_queue();
+	make_ws_queue(&session_wsq);
+	wscs = WS_SEND;
 
-	while(wscs != WS_KILL){
-		switch (wscs){
-		case WS_SEND:
-			
+	while (wscs != WS_KILL)
+	{
+		switch(wscs){
+			case WS_SEND:
+				break;
 		}
 	}
+
+	pthread_exit(NULL);
 }
+
 
 int ws_callback(
     struct lws *wsi, 
@@ -275,20 +275,35 @@ int ws_callback(
     return 0;
 }
 
-int ws_loop(lws_context *context)
-{
-	wscs = WS_SEND;
-
-	while (wscs != WS_KILL)
-	{
-		switch(wscs){
-			case WS_SEND:
-				break;
-		}
-	}
-}
-
 int ws_conn_is_ready()
 {
 	return ws_conn_established_flag && ws_conn_writable_flag;
+}
+
+void *record_thread(void *arg)
+{
+	audio_buffer *rb = NULL;
+	int i, ret, err, brdr, bpr, spr; //bpr - bytes per read, spr - sample per read
+
+	brdr = pcm_byte_per_second(
+		get_rate_ad(recdev), 
+		get_chan_ad(recdev), 
+		get_pfmt_ad(recdev)) * MAIN_PCM_BUF_DURATION;
+	bpr = pcm_byte_per_second(
+		get_rate_ad(recdev),
+		get_chan_ad(recdev), 
+		get_pfmt_ad(recdev)) * PER_READ_PCM_BUF_DURATION / 1000;
+	spr = bpr / pcm_byte_per_frame(get_chan_ad(recdev), get_pfmt_ad(recdev));
+
+	for (i = 0; i <= brdr; i += bpr){
+		pthread_mutex_lock(&q->mutex);
+
+		rb = NULL;
+		rb = rec_ad(recdev, spr);
+		if (!rb){
+			pthread_exit(NULL);
+		}
+		convert_pcm_buf(&rb, 16000);
+		push_session_ws_queue(rb);
+	}
 }

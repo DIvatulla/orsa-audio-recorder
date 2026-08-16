@@ -23,10 +23,11 @@ typedef struct lws_protocols **ws_proto_list;
 typedef enum{
     WS_NONE,
     WS_SEND,
-    WS_END,
+    WS_SEND_END,
     WS_RECV,
-    WS_PLAY,
-    WS_KILL
+    WS_RECV_END,
+    WS_KILL,
+    WS_ERR
 } ws_state;
 
 typedef struct ws_queue_item{

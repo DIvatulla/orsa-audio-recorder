@@ -23,14 +23,6 @@ unsigned int pcm_byte_per_second(
 	return pcm_byte_per_frame(ch, pfmt) * sr;
 }
 
-unsigned int pcm_byte_per_usecond(
-	unsigned int sr,
-	unsigned int ch,
-	snd_pcm_format_t pfmt)
-{
-	return pcm_byte_per_frame(ch, pfmt) * (sr / 1000);
-}
-
 int init_as(audio_settings *s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
 {
 	if (s == NULL) {
@@ -298,10 +290,10 @@ unsigned int calc_buf_size_ab(audio_buffer *ab, audio_measure mu, int mod)
 				ab->pcm_format) * mod;
 			break;
 		case am_usec:
-			return pcm_byte_per_usecond(
+			return (pcm_byte_per_second(
 				ab->sample_rate, 
 				ab->channels, 
-				ab->pcm_format) * mod;
+				ab->pcm_format) * mod) / 1000;
 			break;
 		case am_sample:
 			return sizeof_pcm_format(ab->pcm_format) * mod;
