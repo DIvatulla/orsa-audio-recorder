@@ -9,21 +9,22 @@
 #include <math.h>
 #include <unistd.h>
 #include <speex/speex_resampler.h> 
+#include <fvad.h>
 
 #ifndef WF 
 #define WF 0
 #endif
 
-#define LOCAL_SAMPLE_RATE 44100
+#define LOCAL_SAMPLE_RATE 48000
 #define LOCAL_CHANNELS 1
-#define LOCAL_RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
+#define LOCAL_RECORD_FORMAT SND_PCM_FORMAT_S16_LE
 
 #define PER_READ_PCM_BUF_DURATION 30 //microseconds
 #define MAIN_PCM_BUF_DURATION 15 //seconds
 
 #define SERVER_SAMPLE_RATE 24000
 #define SERVER_CHANNELS 1
-#define SERVER_RECORD_FORMAT SND_PCM_FORMAT_FLOAT_LE
+#define SERVER_RECORD_FORMAT SND_PCM_FORMAT_S16_LE
 
 static char **cli_arguments;
 
@@ -178,9 +179,12 @@ int pop_audio_ws_queue(audio_buffer **ab)
 
 int record()
 {
+	Fvad *vad = fvad_new();
 	audio_buffer *rb = NULL;
 	int i, ret, err, brdr, bpr, spr; //bpr - bytes per read, spr - sample per read
 
+	fvad_set_sample_rate(vad, LOCAL_SAMPLE_RATE);
+	fvad_set_mode(vad, 3);
 	brdr = pcm_byte_per_second(
 		get_rate_ad(recdev), 
 		get_chan_ad(recdev), 
@@ -198,10 +202,14 @@ int record()
 		if (!rb){
 			fprintf(stderr, "record: error\n");
 		}
+		if (fvad_process(vad, (int16_t*)rb->buf, spr)){
+			printf("Speech detected\n");	
+		}
 		//convert_pcm_buf(&rb, 16000);
 		push_audio_ws_queue(rb);
 	}
 	
+	fvad_free(vad);
 	return 0;
 }			
 
