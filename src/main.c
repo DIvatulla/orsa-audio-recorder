@@ -61,7 +61,6 @@ int pop_session_ws_queue(audio_buffer **ab);
 
 int main(int argc, char** argv)
 {   
-	pthread_t wst; //websocket_thread
 	int err = 0;
 	
 	cli_arguments = parse_clargs(argc, argv);
@@ -70,7 +69,7 @@ int main(int argc, char** argv)
 	}
 
 	//ALSA data intialization
-	err = make_as(&settings, SAMPLE_RATE, CHANNELS, RECORD_FORMAT);
+	err = make_as(&settings, LOCAL_SAMPLE_RATE, LOCAL_CHANNELS, LOCAL_RECORD_FORMAT);
 	if (err < 0){
 		return err;
 	}
@@ -324,7 +323,6 @@ int pop_audio_ws_queue(audio_buffer **ab)
 {
 	int err = 0;
 	ws_queue_item *last = NULL;
-	audio_buffer *ab = NULL;
 
 	ab = (audio_buffer*)calloc(1, sizeof(audio_buffer));
 	if (!ab){
