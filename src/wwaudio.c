@@ -194,7 +194,7 @@ audio_buffer *rec_ad(audio_device *d, int sample_amount)
 int play_ad(audio_device *d, audio_buffer *pb)
 {
 	int err;
-	snd_pcm_writei(d->handle, pb->buf, get_cur_sample_size_ab(pb));
+	snd_pcm_writei(d->handle, pb->buf, get_sample_size_ab(pb));
 }
 
 unsigned int get_rate_ad(audio_device *d)

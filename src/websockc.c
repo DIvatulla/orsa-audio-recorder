@@ -206,10 +206,6 @@ int make_ws_queue_item(ws_queue_item **wsqi, unsigned char *data, int data_size)
     if (!(*wsqi)){
         return -1;
     }
-    (*wsqi)->data = (unsigned char*)calloc(data_size, sizeof(char));
-    if (!((*wsqi)->data)){
-        return -1;
-    }
 
     (*wsqi)->data = data;
     (*wsqi)->size = data_size;
@@ -233,9 +229,7 @@ int make_ws_queue(ws_queue **wsq)
     }
     (*wsq)->head = NULL;
     (*wsq)->tail = (*wsq)->head;
-
-    pthread_mutex_init(&((*wsq)->mutex), NULL);
-    pthread_cond_init(&((*wsq)->cond), NULL);
+	(*wsq)->item_count = 0;
 
     return 0;
 }
@@ -251,7 +245,7 @@ int push_ws_queue(ws_queue *wsq, ws_queue_item **item)
 	}
 	wsq->tail->next = NULL;
     ++wsq->item_count;
-    wsq->res_size += ws_queue_item->size;
+    wsq->res_size += (*item)->size;
     return 0;
 }
 
@@ -259,10 +253,12 @@ int pop_ws_queue(ws_queue *wsq, ws_queue_item **item)
 {
     if (!wsq->head){
         printf("Empty queue\n");
+		*item = NULL;
         return -1;
     }
     if (*item){
         printf("Var to pop from queue is not empty\n");
+		*item = NULL;
         return -1;
     }
 
