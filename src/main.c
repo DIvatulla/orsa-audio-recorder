@@ -31,11 +31,11 @@ static audio_device *recdev = NULL;
 static audio_settings *settings = NULL;
 static audio_device *playdev = NULL;
 
-static volatile ws_queue *session_wsq = NULL;
-static volatile ws_state wscs = WS_NONE;
-const char endmsg[] = "END";
-const char haltmsg[] = "HALT";
-char msg[LWS_PRE+4] = {};
+static ws_queue *session_wsq = NULL;
+static ws_state wscs = WS_NONE;
+static const char endmsg[] = "END";
+static const char haltmsg[] = "HALT";
+static char msg[LWS_PRE+4] = {};
 
 static ws_proto_list protocols = NULL;
 static struct lws_context_creation_info *info = NULL;
@@ -324,7 +324,7 @@ int pop_audio_ws_queue(audio_buffer **ab)
 	int err = 0;
 	ws_queue_item *last = NULL;
 
-	ab = (audio_buffer*)calloc(1, sizeof(audio_buffer));
+	*ab = (audio_buffer*)calloc(1, sizeof(audio_buffer));
 	if (!ab){
 		return -1;
 		fprintf(stderr, "pop_session_ws_queue: can't malloc audio buffer\n");
@@ -333,13 +333,13 @@ int pop_audio_ws_queue(audio_buffer **ab)
 	pop_ws_queue(session_wsq, &last);
 	printf("pop_session_ws_queue: new->size-%d\n", new->size);	
 	
-	ab->buf = last->data;
-	ab->size = last->size;
-	ab->wi = 0;
-	ab->ri = 0;
-	ab->sample_rate = SERVER_SAMPLE_RATE;
-	ab->channels = SERVER_CHANNELS;
-	ab->pcm_format = SERVER_RECORD_FORMAT;
+	(*ab)->buf = last->data;
+	(*ab)->size = last->size;
+	(*ab)->wi = 0;
+	(*ab)->ri = 0;
+	(*ab)->sample_rate = SERVER_SAMPLE_RATE;
+	(*ab)->channels = SERVER_CHANNELS;
+	(*ab)->pcm_format = SERVER_RECORD_FORMAT;
 	free(new);
 
 	printf("pop_session_ws_queue: ab->size-%d\n", (*ab)->size);	
