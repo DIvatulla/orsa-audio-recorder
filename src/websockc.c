@@ -3,15 +3,6 @@
 #include <libwebsockets.h>
 #include "../include/websockc.h"
 
-#define BLOCK_SIGNAL(SIGNAL)\
-    do{\
-        sigset_t set;\
-	    sigemptyset(&set);\
-        sigaddset(&set, SIGNAL);\
-	    pthread_sigmask(SIG_BLOCK, &set, NULL);\
-    } while(0)
-
-
 int malloc_str_fields(int amount, ...)
 {
     int i, err, field_size;
@@ -228,7 +219,9 @@ int make_ws_queue_item(ws_queue_item **wsqi, unsigned char *data, int data_size)
 
 void free_ws_queue_item(ws_queue_item *wsqi)
 {
-    wsqi->data ? free(wsqi->data) : 0;
+    if (wsqi->data){
+        free(wsqi->data);
+    }
     free(wsqi);
 }
 
@@ -257,6 +250,8 @@ int push_ws_queue(ws_queue *wsq, ws_queue_item **item)
 		wsq->tail = *item;
 	}
 	wsq->tail->next = NULL;
+    ++wsq->item_count;
+    wsq->res_size += ws_queue_item->size;
     return 0;
 }
 
@@ -273,6 +268,7 @@ int pop_ws_queue(ws_queue *wsq, ws_queue_item **item)
 
     *item = wsq->head;
     wsq->head = wsq->head->next;
+    --wsq->item_count;
 
     return 0;
 }
@@ -293,4 +289,47 @@ void free_ws_queue(ws_queue *wsq)
         }
     }
     free(wsq);
+}
+
+int send_n_ws_queue(
+    struct lws_context *context, 
+    static struct lws *wsi,
+    ws_queue *wsq,
+    int amount)
+{
+    int err, i;
+    ws_queue_item *tmp;
+    char *send_buf = NULL;
+   
+    if ((amount <= 0) || (!wsq->head)){
+        return -1;
+    }
+
+    send_buf = (char*)calloc(LWS_PRE + wsq->res_size, sizeof(char));
+    if (!send_buf){
+        return -1;
+    }
+
+    for(i = LWS_PRE; amount; i += tmp->size, amount--){
+        err = pop_ws_queue(wsq, &tmp);
+        if (err < 0){
+            return -1;
+        }
+
+        if (tmp->data){
+            memcpy(&send_buf[i], tmp->data, tmp->size);
+            free_ws_queue_item(tmp);
+        }
+        else{
+            break;
+        }
+    }
+
+    int n = lws_write(wsi, &send_buf[LWS_PRE], i, LWS_WRITE_BINARY);
+    free(send_buf);
+    if (n < 0 || (n < written)){
+        return -1;
+    }
+    
+    return 0;
 }

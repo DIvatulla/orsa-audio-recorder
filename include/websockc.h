@@ -22,6 +22,7 @@ typedef struct lws_protocols **ws_proto_list;
 
 typedef enum{
     WS_NONE,
+    WS_START,
     WS_SEND,
     WS_SEND_END,
     WS_RECV,
@@ -37,11 +38,10 @@ typedef struct ws_queue_item{
 } ws_queue_item;
 
 typedef struct{
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
     ws_queue_item *head;
 	ws_queue_item *tail;
     int item_count;
+    int res_size;
 } ws_queue;
 
 

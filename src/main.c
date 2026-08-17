@@ -35,6 +35,7 @@ static volatile ws_queue *session_wsq = NULL;
 static volatile ws_state wscs = WS_NONE;
 const char endmsg[] = "END";
 const char haltmsg[] = "HALT";
+char msg[LWS_PRE+4] = {};
 
 static ws_proto_list protocols = NULL;
 static struct lws_context_creation_info *info = NULL;
@@ -141,8 +142,13 @@ int main(int argc, char** argv)
 		pthread_exit(NULL);
 	}
 
-	pthread_create(&wst, NULL, &ws_thread, NULL);
-	pthread_join(wst, NULL);
+	wscs = WS_START;
+	while (!ws_conn_is_ready()){
+		lws_service(context, 0);
+	}
+	wscs = WS_SEND;
+	make_ws_queue(&session_wsq);
+	ws_loop();
 
 	free_clargs(cli_arguments);
 	free_as(settings);
@@ -154,6 +160,136 @@ int main(int argc, char** argv)
 	free_client_connection_info(cc_info);
 
 	return 0;
+}
+
+void ws_loop()
+{
+	audio_buffer *rb = NULL;
+	int i, ret, err, brdr, bpr, spr; //bpr - bytes per read, spr - sample per read
+	brdr = pcm_byte_per_second(
+		get_rate_ad(recdev), 
+		get_chan_ad(recdev), 
+		get_pfmt_ad(recdev)) * MAIN_PCM_BUF_DURATION;
+	bpr = pcm_byte_per_second(
+		get_rate_ad(recdev),
+		get_chan_ad(recdev), 
+		get_pfmt_ad(recdev)) * PER_READ_PCM_BUF_DURATION / 1000;
+	spr = bpr / pcm_byte_per_frame(get_chan_ad(recdev), get_pfmt_ad(recdev));
+	
+	while (wscs != WS_KILL)
+	{
+		switch(wscs){
+			case WS_SEND:
+				for (i = 0; i <= brdr; i += bpr){
+					rb = NULL;
+					rb = rec_ad(recdev, spr);
+					if (!rb){
+						return -1;
+					}
+					convert_pcm_buf(&rb, 16000);
+					push_session_ws_queue(rb);
+					
+					if (session_wsq->item_count == 8){
+						lws_callback_on_writable(client_wsi);
+					}
+				}
+				wscs = WS_SEND_END;
+				break;
+			case WS_SEND_END:
+				lws_callback_on_writable(client_wsi);
+				break;
+			
+		}
+	}
+}
+
+int ws_callback(
+    struct lws *wsi, 
+    enum lws_callback_reasons reason, 
+    void *user, 
+    void *in, 
+    size_t len
+){
+	switch(reason){
+	case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+		lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char *)in : "(null)");
+		wscs = WS_KILL;
+		break;	
+	case LWS_CALLBACK_CLIENT_ESTABLISHED:
+		ws_conn_established_flag = 1;
+		lwsl_user("Connected to server.\n");
+		break;
+	case LWS_CALLBACK_CLIENT_RECEIVE:
+
+		break;
+    case LWS_CALLBACK_CLIENT_WRITEABLE:
+		if (LWS_CALLBACK_CLIENT_WRITEABLE_handler() < 0){
+			wscs = WS_KILL;
+		}
+		break;
+	case LWS_CALLBACK_CLIENT_CLOSED:
+		lwsl_user("Connection closed.\n");
+		wscs = WS_KILL;
+		break;
+	default:
+		break;
+    }
+ 
+    return 0;
+}
+
+int LWS_CALLBACK_CLIENT_WRITEABLE_handler()
+{
+	int err = 0;
+
+	switch(wscs){
+	case WS_START:
+		ws_conn_writable_flag = 1;
+		break;
+	case WS_SEND:
+		err = send_n_ws_queue(context, session_wsq, 8);
+		if (err < 0){
+			return err;
+		}
+		break;
+	case WS_SEND_END:
+		memcpy(&msg[LWS_PRE], endmsg, strlen(endmsg));
+		lws_write(wsi, &msg[LWS_PRE], strlen(endmsg), LWS_WRITE_TEXT);
+		break;
+	default:
+		return -1;
+	}
+
+	return 0;
+}
+
+int LWS_CALLBACK_CLIENT_RECEIVE_handler(void *in, size_t len)
+{
+	int err = 0;
+
+	switch(wscs){
+	case WS_RECV:
+		if ((len == 4) && (strcmp(endmsg, in))){
+			wscs = WS_RECV_END;
+			break;
+		}
+
+		push_ws_queue(in_wsq, in, len);
+		break;
+	case WS_SEND_END:
+		memcpy(&msg[LWS_PRE], endmsg, strlen(endmsg));
+		lws_write(wsi, &msg[LWS_PRE], strlen(endmsg), LWS_WRITE_TEXT);
+		break;
+	default:
+		return -1;
+	}
+
+	return 0;
+}
+
+int ws_conn_is_ready()
+{
+	return ws_conn_established_flag && ws_conn_writable_flag;
 }
 
 void write_file(unsigned char *b, int size, char *filename)
@@ -168,7 +304,7 @@ void write_file(unsigned char *b, int size, char *filename)
     printf("Saved\n");
 }
 
-int push_session_ws_queue(audio_buffer *ab)
+int push_audio_ws_queue(audio_buffer *ab)
 {
 	int err = 0;
 	ws_queue_item *new = NULL;
@@ -184,7 +320,7 @@ int push_session_ws_queue(audio_buffer *ab)
 	return 0;
 }
 
-int pop_session_ws_queue(audio_buffer **ab)
+int pop_audio_ws_queue(audio_buffer **ab)
 {
 	int err = 0;
 	ws_queue_item *last = NULL;
@@ -211,99 +347,4 @@ int pop_session_ws_queue(audio_buffer **ab)
 	printf("pop_session_ws_queue: ab->size-%d\n", (*ab)->size);	
 	
 	return 0;
-}
-
-void *ws_thread(void *arg)
-{
-	int err;
-
-
-	while (!ws_conn_is_ready()){
-		lws_service(context, 0);
-	}
-
-	make_ws_queue(&session_wsq);
-	wscs = WS_SEND;
-
-	while (wscs != WS_KILL)
-	{
-		switch(wscs){
-			case WS_SEND:
-				break;
-		}
-	}
-
-	pthread_exit(NULL);
-}
-
-
-int ws_callback(
-    struct lws *wsi, 
-    enum lws_callback_reasons reason, 
-    void *user, 
-    void *in, 
-    size_t len
-){
-	switch(reason){
-	case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-		lwsl_err("CLIENT_CONNECTION_ERROR: %s\n", in ? (char *)in : "(null)");
-		break;	
-	case LWS_CALLBACK_CLIENT_ESTABLISHED:
-		ws_conn_established_flag = 1;
-		lwsl_user("Connected to server.\n");
-		break;
-	case LWS_CALLBACK_CLIENT_RECEIVE:
-		break;
-    case LWS_CALLBACK_CLIENT_WRITEABLE:
-		if (!ws_conn_writable_flag){
-			ws_conn_writable_flag = 1;
-			break
-		}
-
-		if (session_wsq->item_count == 24){
-			
-		}
-		break;
-	case LWS_CALLBACK_CLIENT_CLOSED:
-		lwsl_user("Connection closed.\n");
-		wscs = WS_KILL;
-		break;
-	default:
-		break;
-    }
- 
-    return 0;
-}
-
-int ws_conn_is_ready()
-{
-	return ws_conn_established_flag && ws_conn_writable_flag;
-}
-
-void *record_thread(void *arg)
-{
-	audio_buffer *rb = NULL;
-	int i, ret, err, brdr, bpr, spr; //bpr - bytes per read, spr - sample per read
-
-	brdr = pcm_byte_per_second(
-		get_rate_ad(recdev), 
-		get_chan_ad(recdev), 
-		get_pfmt_ad(recdev)) * MAIN_PCM_BUF_DURATION;
-	bpr = pcm_byte_per_second(
-		get_rate_ad(recdev),
-		get_chan_ad(recdev), 
-		get_pfmt_ad(recdev)) * PER_READ_PCM_BUF_DURATION / 1000;
-	spr = bpr / pcm_byte_per_frame(get_chan_ad(recdev), get_pfmt_ad(recdev));
-
-	for (i = 0; i <= brdr; i += bpr){
-		pthread_mutex_lock(&q->mutex);
-
-		rb = NULL;
-		rb = rec_ad(recdev, spr);
-		if (!rb){
-			pthread_exit(NULL);
-		}
-		convert_pcm_buf(&rb, 16000);
-		push_session_ws_queue(rb);
-	}
 }
