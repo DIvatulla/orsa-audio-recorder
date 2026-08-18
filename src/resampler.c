@@ -46,14 +46,31 @@ int resample_pcm(
     
     printf("in_len %d\nout_len %d\n", in_len, out_len);
     
-    err = speex_resampler_process_float(
-        resampler, 
-        0, 
-        (float*)in_ab->buf, 
-        &in_len, 
-        (float*)out_ab->buf, 
-        &out_len
-    );
+    switch(in_ab->pcm_format){
+    case SND_PCM_FORMAT_S16_LE:
+        err = speex_resampler_process_int(
+            resampler,
+            0,
+            (short int*)in_ab->buf, 
+            &in_len, 
+            (short int*)out_ab->buf, 
+            &out_len
+        );        
+        break;
+    case SND_PCM_FORMAT_FLOAT_LE:
+        err = speex_resampler_process_float(
+            resampler, 
+            0, 
+            (float*)in_ab->buf, 
+            &in_len, 
+            (float*)out_ab->buf, 
+            &out_len
+        );
+        break;
+    default:
+        err = 1;
+    }
+
 
     if (err != RESAMPLER_ERR_SUCCESS) {
         fprintf(stderr, "Resampling process failed: %d\n", err);
@@ -102,5 +119,6 @@ int convert_pcm_buf(audio_buffer **ab, int out_sr)
     speex_resampler_destroy(resampler);
 	free_ab(*ab);
 	*ab = ob;
+    
     return 0;
 }

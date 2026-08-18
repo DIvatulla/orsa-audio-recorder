@@ -205,7 +205,7 @@ int record()
 		if (fvad_process(vad, (int16_t*)rb->buf, spr)){
 			printf("Speech detected\n");	
 		}
-		//convert_pcm_buf(&rb, 16000);
+		convert_pcm_buf(&rb, 16000);
 		push_audio_ws_queue(rb);
 	}
 	
@@ -224,11 +224,11 @@ int play()
 			printf("continue\n");
 			continue;
 		}
+		convert_pcm_buf(&rb, 48000);
 		play_ad(playdev, rb);
 		free_ab(rb);
 		printf("play: session_wsq->item_count - %d\n", session_wsq->item_count);
 	}
-	//snd_pcm_drain(playdev->handle);
 
 	return 0;
 }
