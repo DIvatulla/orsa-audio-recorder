@@ -68,7 +68,7 @@ int resample_pcm(
         );
         break;
     default:
-        err = 1;
+        err = -1;
     }
 
 
