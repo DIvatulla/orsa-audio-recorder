@@ -12,12 +12,6 @@
 #endif
 
 #define WS_DEFAULT_PORT 80
-
-typedef struct{
-    unsigned char *buf; //LWS_PRE bytes of headroom for framing + MAX_PAYLOAD
-    size_t size;
-    int wi;
-} ws_session_data;
 typedef struct lws_protocols **ws_proto_list;
 
 typedef enum{
@@ -40,8 +34,10 @@ typedef struct ws_queue_item{
 typedef struct{
     ws_queue_item *head;
 	ws_queue_item *tail;
-    int item_count;
+    int count;
     int res_size;
+    pthread_mutex_t mutex;
+	pthread_cond_t cond;
 } ws_queue;
 
 

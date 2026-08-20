@@ -229,7 +229,9 @@ int make_ws_queue(ws_queue **wsq)
     }
     (*wsq)->head = NULL;
     (*wsq)->tail = (*wsq)->head;
-	(*wsq)->item_count = 0;
+	(*wsq)->count = 0;
+    pthread_mutex_init(&((*wsq)->mutex), NULL);
+    pthread_cond_init(&((*wsq)->cond), NULL);
 
     return 0;
 }
@@ -244,7 +246,7 @@ int push_ws_queue(ws_queue *wsq, ws_queue_item **item)
 		wsq->tail = *item;
 	}
 	wsq->tail->next = NULL;
-    ++wsq->item_count;
+    ++wsq->count;
     wsq->res_size += (*item)->size;
     return 0;
 }
@@ -264,7 +266,7 @@ int pop_ws_queue(ws_queue *wsq, ws_queue_item **item)
 
     *item = wsq->head;
     wsq->head = wsq->head->next;
-    --wsq->item_count;
+    --wsq->count;
 
     return 0;
 }

@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <speex/speex_resampler.h> 
 #include <fvad.h>
 
@@ -19,12 +20,14 @@
 #define LOCAL_CHANNELS 1
 #define LOCAL_RECORD_FORMAT SND_PCM_FORMAT_S16_LE
 
-#define PER_READ_PCM_BUF_DURATION 30 //microseconds
-#define MAIN_PCM_BUF_DURATION 15 //seconds
-
 #define SERVER_SAMPLE_RATE 24000
 #define SERVER_CHANNELS 1
 #define SERVER_RECORD_FORMAT SND_PCM_FORMAT_S16_LE
+
+#define PER_READ_PCM_BUF_DURATION 30 //milliseconds
+#define MAIN_PCM_BUF_DURATION 60 * 1000
+#define REC_WINDOW 240
+#define SILENCE_WINDOW (3 * 1000) / PER_READ_PCM_BUF_DURATION
 
 static char **cli_arguments;
 
@@ -63,6 +66,11 @@ int pop_audio_ws_queue(audio_buffer **ab);
 int record();
 int play();
 
+void *record_thread(void *arg);
+void *record_thread_cleanup(void *arg);
+void *play_thread(void *arg);
+void *play_thread_cleanup(void *arg);
+
 int main(int argc, char** argv)
 {   
 	int err = 0;
@@ -98,10 +106,18 @@ int main(int argc, char** argv)
 		return err;
 	}
 
+	wscs = WS_NONE;
 	make_ws_queue(&session_wsq);
-	
-	record();
-	play();
+
+	pthread_t thr[2];
+	pthread_create(&thr[0], NULL, &record_thread, NULL);
+	//pthread_create(&thr[1], NULL, &play_thread, NULL);
+
+	pthread_join(thr[0], NULL);
+	//pthread_join(thr[1], NULL);
+
+	//record();
+	//play();
 
 	free_clargs(cli_arguments);
 	free_as(settings);
@@ -109,6 +125,7 @@ int main(int argc, char** argv)
 	free_ad(playdev);
 	free_ws_queue(session_wsq);
 	snd_config_update_free_global();
+
 	//free_proto_list(protocols);
 	//free_context_creation_info(info);
 	//free_client_connection_info(cc_info);
@@ -166,9 +183,9 @@ int pop_audio_ws_queue(audio_buffer **ab)
 	(*ab)->size = first->size;
 	(*ab)->wi = 0;
 	(*ab)->ri = 0;
-	(*ab)->sample_rate = SERVER_SAMPLE_RATE;
-	(*ab)->channels = SERVER_CHANNELS;
-	(*ab)->pcm_format = SERVER_RECORD_FORMAT;
+	(*ab)->sample_rate = LOCAL_SAMPLE_RATE;
+	(*ab)->channels = LOCAL_CHANNELS;
+	(*ab)->pcm_format = LOCAL_RECORD_FORMAT;
 	free(first);
 	first = NULL;
 
@@ -184,7 +201,7 @@ int record()
 	int i, ret, err, brdr, bpr, spr; //bpr - bytes per read, spr - sample per read
 
 	fvad_set_sample_rate(vad, LOCAL_SAMPLE_RATE);
-	fvad_set_mode(vad, 3);
+	fvad_set_mode(vad, 1);
 	brdr = pcm_byte_per_second(
 		get_rate_ad(recdev), 
 		get_chan_ad(recdev), 
@@ -227,8 +244,125 @@ int play()
 		convert_pcm_buf(&rb, 48000);
 		play_ad(playdev, rb);
 		free_ab(rb);
-		printf("play: session_wsq->item_count - %d\n", session_wsq->item_count);
+		printf("play: session_wsq->item_count - %d\n", session_wsq->count);
 	}
 
 	return 0;
+}
+   
+
+void *record_thread(void *arg)
+{
+	Fvad *vad = fvad_new();
+	pthread_cleanup_push(&record_thread_cleanup, vad);
+	
+	audio_buffer *rb = NULL;
+	long int i;
+	int cond = ((LOCAL_SAMPLE_RATE / 1000) * (MAIN_PCM_BUF_DURATION));
+	int spr = ((LOCAL_SAMPLE_RATE / 1000) * PER_READ_PCM_BUF_DURATION);
+	int s_count = 0;	
+	
+	fvad_set_sample_rate(vad, LOCAL_SAMPLE_RATE);
+	fvad_set_mode(vad, 3);
+	
+	printf("MAIN_PCM_BUF_DURATION %d\n", MAIN_PCM_BUF_DURATION);
+	printf("cond %d\n", cond);
+	printf("spr %d\n", spr);
+	for (i = 0; i <= cond; i += spr){
+		printf("i = %d\n", i);
+		printf("recording\n");
+		pthread_mutex_lock(&session_wsq->mutex);
+
+		if (wscs == WS_KILL){
+			pthread_exit(NULL);
+		}
+
+		rb = NULL;
+		rb = rec_ad(recdev, spr);
+		if (!rb){
+			fprintf(stderr, "record: error\n");
+			exit(-1);
+		}
+
+		if (!fvad_process(vad, (int16_t*)rb->buf, spr)){
+			printf("Silence\n");
+			++s_count;
+			if (s_count >= SILENCE_WINDOW){
+				wscs = WS_SEND_END;
+				pthread_cond_broadcast(&session_wsq->cond);
+				pthread_exit(NULL);
+				break;
+			}
+		}
+		else{
+			printf("Speech detected\n");
+			s_count = 0;
+		}
+
+		push_audio_ws_queue(rb);
+		printf("record: session_wsq->count - %d\n", session_wsq->count);
+		if (session_wsq->count >= (REC_WINDOW / PER_READ_PCM_BUF_DURATION)){
+        	pthread_cond_signal(&session_wsq->cond);
+		}
+
+		pthread_mutex_unlock(&session_wsq->mutex);
+	}
+
+	wscs = WS_SEND_END;
+	pthread_mutex_unlock(&session_wsq->mutex);
+	pthread_cond_broadcast(&session_wsq->cond);
+	pthread_cleanup_pop(0);
+}
+void *record_thread_cleanup(void *arg)
+{
+	pthread_mutex_unlock(&session_wsq->mutex);
+	fvad_free((Fvad*)arg);
+}
+
+void *play_thread(void *arg)
+{
+	pthread_cleanup_push(&play_thread_cleanup, NULL);
+
+	int i;
+	audio_buffer *rb = NULL;
+
+	for (;;){
+		pthread_mutex_lock(&session_wsq->mutex);
+
+		if ((wscs == WS_SEND_END) ||
+			(wscs == WS_KILL)){
+			pthread_exit(NULL);
+		}
+
+		while (session_wsq->count < (REC_WINDOW / PER_READ_PCM_BUF_DURATION)){
+			pthread_cond_wait(&session_wsq->cond, &session_wsq->mutex);
+		}
+
+		for (i = 1; i <= (REC_WINDOW / PER_READ_PCM_BUF_DURATION); i++){
+			pop_audio_ws_queue(&rb);
+			play_ad(playdev, rb);
+			free_ab(rb);
+			rb = NULL;
+			printf("play: session_wsq->count - %d\n", session_wsq->count);
+		}
+
+		pthread_mutex_unlock(&session_wsq->mutex);
+	}
+
+	pthread_cleanup_pop(0);
+}
+void *play_thread_cleanup(void *arg)
+{
+	audio_buffer *rb = NULL;
+
+	if (session_wsq->count > 0){
+		while (session_wsq->head){
+			pop_audio_ws_queue(&rb);
+			printf("consumer cleanup\n");
+			play_ad(playdev, rb);
+			free_ab(rb);
+		}
+	}
+
+	pthread_mutex_unlock(&session_wsq->mutex);	
 }

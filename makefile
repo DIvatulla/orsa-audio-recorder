@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -Wall -Wextra -Iinclude -fsanitize=address
+CFLAGS = -g -Wall -Wextra -Iinclude 
 MDEF =
 
 SRC := $(wildcard src/*.c)
