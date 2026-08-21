@@ -67,9 +67,9 @@ int record();
 int play();
 
 void *record_thread(void *arg);
-void *record_thread_cleanup(void *arg);
+void record_thread_cleanup(void *arg);
 void *play_thread(void *arg);
-void *play_thread_cleanup(void *arg);
+void play_thread_cleanup(void *arg);
 
 int main(int argc, char** argv)
 {   
@@ -111,10 +111,10 @@ int main(int argc, char** argv)
 
 	pthread_t thr[2];
 	pthread_create(&thr[0], NULL, &record_thread, NULL);
-	//pthread_create(&thr[1], NULL, &play_thread, NULL);
+	pthread_create(&thr[1], NULL, &play_thread, NULL);
 
 	pthread_join(thr[0], NULL);
-	//pthread_join(thr[1], NULL);
+	pthread_join(thr[1], NULL);
 
 	//record();
 	//play();
@@ -249,12 +249,12 @@ int play()
 
 	return 0;
 }
-   
 
 void *record_thread(void *arg)
 {
 	Fvad *vad = fvad_new();
-	pthread_cleanup_push(&record_thread_cleanup, vad);
+
+	pthread_cleanup_push(&record_thread_cleanup, (void*)vad);
 	
 	audio_buffer *rb = NULL;
 	long int i;
@@ -270,8 +270,8 @@ void *record_thread(void *arg)
 	printf("spr %d\n", spr);
 	for (i = 0; i <= cond; i += spr){
 		printf("i = %d\n", i);
-		printf("recording\n");
 		pthread_mutex_lock(&session_wsq->mutex);
+		printf("recording\n");
 
 		if (wscs == WS_KILL){
 			pthread_exit(NULL);
@@ -289,9 +289,7 @@ void *record_thread(void *arg)
 			++s_count;
 			if (s_count >= SILENCE_WINDOW){
 				wscs = WS_SEND_END;
-				pthread_cond_broadcast(&session_wsq->cond);
 				pthread_exit(NULL);
-				break;
 			}
 		}
 		else{
@@ -309,13 +307,17 @@ void *record_thread(void *arg)
 	}
 
 	wscs = WS_SEND_END;
+	fvad_free((Fvad*)arg);
 	pthread_mutex_unlock(&session_wsq->mutex);
 	pthread_cond_broadcast(&session_wsq->cond);
 	pthread_cleanup_pop(0);
 }
-void *record_thread_cleanup(void *arg)
+void record_thread_cleanup(void *arg)
 {
+	printf("record_thread_cleanup\n");
+	wscs = WS_SEND_END; 
 	pthread_mutex_unlock(&session_wsq->mutex);
+	pthread_cond_signal(&session_wsq->cond);
 	fvad_free((Fvad*)arg);
 }
 
@@ -328,31 +330,39 @@ void *play_thread(void *arg)
 
 	for (;;){
 		pthread_mutex_lock(&session_wsq->mutex);
+		printf("playing\n");
 
-		if ((wscs == WS_SEND_END) ||
-			(wscs == WS_KILL)){
-			pthread_exit(NULL);
-		}
-
-		while (session_wsq->count < (REC_WINDOW / PER_READ_PCM_BUF_DURATION)){
+		while ((session_wsq->count < (REC_WINDOW / PER_READ_PCM_BUF_DURATION))) {
+			if (wscs == WS_SEND_END){
+				printf("WS_SEND_END\n");
+				pthread_exit(NULL);
+			}
 			pthread_cond_wait(&session_wsq->cond, &session_wsq->mutex);
 		}
+		printf("stop wait\n");
 
 		for (i = 1; i <= (REC_WINDOW / PER_READ_PCM_BUF_DURATION); i++){
 			pop_audio_ws_queue(&rb);
-			play_ad(playdev, rb);
-			free_ab(rb);
+			if (rb){
+				play_ad(playdev, rb);
+				free_ab(rb);
+				printf("play: session_wsq->count - %d\n", session_wsq->count);
+			}
 			rb = NULL;
-			printf("play: session_wsq->count - %d\n", session_wsq->count);
+			if (wscs == WS_SEND_END){
+				pthread_exit(NULL);
+			}
 		}
 
 		pthread_mutex_unlock(&session_wsq->mutex);
 	}
 
+	pthread_mutex_unlock(&session_wsq->mutex);
 	pthread_cleanup_pop(0);
 }
-void *play_thread_cleanup(void *arg)
+void play_thread_cleanup(void *arg)
 {
+	printf("play_thread_cleanup\n");
 	audio_buffer *rb = NULL;
 
 	if (session_wsq->count > 0){
