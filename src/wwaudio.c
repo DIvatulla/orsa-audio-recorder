@@ -326,7 +326,6 @@ int audio_record(audio_device *d, audio_buffer *ab, int frame_amount)
 	audio_buffer *rb;
 	int ret, err;
 
-	printf("snd_pcm_bytes_to_frames(d->handle, rb->size) = %d\n",  snd_pcm_bytes_to_frames(d->handle, rb->size));
 	if (frame_amount > get_size_ab_cur(ab, am_frame)){
 		fprintf(stderr, "Requested amount of frames to record is more than size of buffer\n");
 		return -1;
@@ -339,9 +338,10 @@ int audio_record(audio_device *d, audio_buffer *ab, int frame_amount)
 		get_pfmt_ad(d), 
 		am_frame, 
 		frame_amount);
-	if (err < 0){
-		return -1;
-	}
+	if (err < 0) return -1;
+	
+	printf("snd_pcm_bytes_to_frames(d->handle, rb->size) = %d\n",  snd_pcm_bytes_to_frames(d->handle, rb->size));
+
 
 	ret = snd_pcm_readi(d->handle, rb->buf, get_size_ab(rb, am_frame));
 	if (ret == -EPIPE){
