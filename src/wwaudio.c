@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>	
+#include <libfvad.h>
 
 int sizeof_pcm_format(snd_pcm_format_t pfmt)
 {
@@ -327,7 +328,7 @@ int audio_record(audio_device *d, audio_buffer *ab, int frame_amount)
 	audio_buffer *rb;
 	int ret, err;
 
-	fvad_set_sample_rate(vad, LOCAL_SAMPLE_RATE);
+	fvad_set_sample_rate(vad, ab->sample_rate);
 	fvad_set_mode(vad, 3);
 
 	err = make_ab(
@@ -340,7 +341,6 @@ int audio_record(audio_device *d, audio_buffer *ab, int frame_amount)
 	if (err < 0) return -1;
 	
 	printf("snd_pcm_bytes_to_frames(d->handle, rb->size) = %d\n",  snd_pcm_bytes_to_frames(d->handle, rb->size));
-
 
 	ret = snd_pcm_readi(d->handle, rb->buf, get_size_ab(rb, am_frame));
 	if (ret == -EPIPE){
