@@ -105,7 +105,8 @@ int main(int argc, char** argv)
 			pcm_audio_buffer, 
 			(get_rate_ad(recdev) / 1000) * 
 				PER_READ_PCM_BUF_DURATION *
-				get_chan_ad(recdev)
+				get_chan_ad(recdev),
+			vad
 		);
 	}
 
