@@ -25,22 +25,6 @@ typedef enum{
     WS_ERR
 } ws_state;
 
-typedef struct ws_queue_item{
-    unsigned char *data;
-    int size;
-    struct ws_queue_item *next;
-} ws_queue_item;
-
-typedef struct{
-    ws_queue_item *head;
-	ws_queue_item *tail;
-    int count;
-    int res_size;
-    pthread_mutex_t mutex;
-	pthread_cond_t cond;
-} ws_queue;
-
-
 void init_proto_list(
     ws_proto_list pl,
     char *proto_name, 
@@ -86,13 +70,5 @@ int make_client_connection_info(
     char *origin_header);
 
 void free_client_connection_info(struct lws_client_connect_info *cc_info);
-
-int make_ws_queue_item(ws_queue_item **wsqi, unsigned char *data, int data_size);
-void free_ws_queue_item(ws_queue_item *wsqi);
-int make_ws_queue(ws_queue **wsq);
-int push_ws_queue(ws_queue *wsq, ws_queue_item **item);
-int pop_ws_queue(ws_queue *wsq, ws_queue_item **item);
-void free_ws_queue(ws_queue *wsq);
-
 
 #endif

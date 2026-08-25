@@ -9,8 +9,8 @@
 #include <math.h>
 
 typedef struct {
-    unsigned int rate;
-    unsigned int channels;
+    int rate;
+    int channels;
     snd_pcm_format_t pcm_format;
 } audio_settings;
 
@@ -22,7 +22,7 @@ typedef struct {
 
 typedef enum {
 	am_sec, //count frames by second
-	am_usec,
+	am_msec,
 	am_sample,
 	am_frame, //count frames by sample rate and amoutn of channels
 	am_byte
@@ -33,54 +33,55 @@ typedef struct {
 	int size;
 	int wi;	//write index
 	int ri; //read index
-	unsigned int sample_rate;
-	unsigned int channels;
+	int sample_rate;
+	int channels;
 	snd_pcm_format_t pcm_format;
 } audio_buffer;
 
-unsigned int sizeof_pcm_format(snd_pcm_format_t pfmt);
-unsigned int pcm_byte_per_frame(unsigned int ch, snd_pcm_format_t pfmt);
-unsigned int pcm_byte_per_second(
-	unsigned int sr,
-	unsigned int ch,
+int sizeof_pcm_format(snd_pcm_format_t pfmt);
+int pcm_byte_per_sample(snd_pcm_format_t pfmt);
+int pcm_byte_per_frame(int ch, snd_pcm_format_t pfmt);
+int pcm_byte_per_second(
+	int sr,
+	int ch,
 	snd_pcm_format_t pfmt
 );
 
-int init_as(audio_settings *s, unsigned int r, int ch, snd_pcm_format_t pcm_f);
-int make_as(audio_settings **s, unsigned int r, int ch, snd_pcm_format_t pcm_f);
+int init_as(audio_settings *s, int r, int ch, snd_pcm_format_t pcm_f);
+int make_as(audio_settings **s, int r, int ch, snd_pcm_format_t pcm_f);
 void free_as(audio_settings *s);
 
 int init_ad(audio_device *d, char *name, audio_settings *s, snd_pcm_stream_t mode);
 int make_ad(audio_device **d, char *name, audio_settings *s, snd_pcm_stream_t mode);
-audio_buffer *rec_ad(audio_device *d, int sample_amount);
-int play_ad(audio_device *d, audio_buffer *pb);
-unsigned int get_rate_ad(audio_device *d);
-unsigned int get_chan_ad(audio_device *d);
+int get_rate_ad(audio_device *d);
+int get_chan_ad(audio_device *d);
 snd_pcm_format_t get_pfmt_ad(audio_device *d);
 void free_ad(audio_device *d);
 
 int init_ab(
 	audio_buffer *ab, 
-	unsigned int sr,
-	unsigned int ch,
+	int sr,
+	int ch,
 	snd_pcm_format_t pfmt, 
 	audio_measure mu, 
 	int mod
 );
 int make_ab(
 	audio_buffer **ab, 
-	unsigned int sr,
-	unsigned int ch,
+	int sr,
+	int ch,
 	snd_pcm_format_t pfmt,
 	audio_measure mu, 
 	int mod
 );
-unsigned int calc_buf_size_ab(audio_buffer *ab, audio_measure mu, int mod);
-unsigned int get_sample_size_ab(audio_buffer *ab);
-unsigned int get_cur_sample_size_ab(audio_buffer *ab);
-unsigned int get_frame_size_ab(audio_buffer *ab);
-unsigned int get_cur_frame_size_ab(audio_buffer *ab);
+int calc_buf_size(int sr, int ch, snd_pcm_format_t pfmt, audio_measure mu, int mod);
+int convert_buf_size(int s, int sr, int ch, snd_pcm_format_t pfmt, audio_measure mu);
+int get_size_ab(audio_buffer *ab, audio_measure mu);
+int get_size_ab_cur(audio_buffer *ab, audio_measure mu);
 int push_ab(audio_buffer *to, audio_buffer *from);
 void free_ab(audio_buffer *ab);
+
+int audio_record(audio_device *d, audio_buffer *ab, int frame_amount);
+int audio_play(audio_device *d, audio_buffer *ab);
 
 #endif

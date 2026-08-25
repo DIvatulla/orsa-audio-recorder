@@ -5,25 +5,27 @@
 #include <string.h>
 #include <math.h>	
 
-unsigned int sizeof_pcm_format(snd_pcm_format_t pfmt)
+int sizeof_pcm_format(snd_pcm_format_t pfmt)
 {
 	return (snd_pcm_format_physical_width(pfmt) / 8);
 }
 
-unsigned int pcm_byte_per_frame(unsigned int ch, snd_pcm_format_t pfmt)
+int pcm_byte_per_sample(snd_pcm_format_t pfmt)
 {
-	return sizeof_pcm_format(pfmt) * ch;
+	return sizeof_pcm_format(pfmt);
 }
 
-unsigned int pcm_byte_per_second(
-	unsigned int sr,
-	unsigned int ch,
-	snd_pcm_format_t pfmt)
+int pcm_byte_per_frame(int ch, snd_pcm_format_t pfmt)
+{
+	return pcm_byte_per_sample(pfmt) * ch;
+}
+
+int pcm_byte_per_second(int sr, int ch, snd_pcm_format_t pfmt)
 {
 	return pcm_byte_per_frame(ch, pfmt) * sr;
 }
 
-int init_as(audio_settings *s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
+int init_as(audio_settings *s, int r, int ch, snd_pcm_format_t pcm_f)
 {
 	if (s == NULL) {
         fprintf(stderr, "Pointer to settings is null\n");
@@ -51,7 +53,7 @@ int init_as(audio_settings *s, unsigned int r, int ch, snd_pcm_format_t pcm_f)
 	return 0;
 }
 
-int make_as(audio_settings **s, unsigned int r, int ch, snd_pcm_format_t pcmf)
+int make_as(audio_settings **s, int r, int ch, snd_pcm_format_t pcmf)
 {
     int err;
 	
@@ -155,56 +157,14 @@ int make_ad(audio_device **d, char *name, audio_settings *s, snd_pcm_stream_t mo
 	return 0;
 }
 
-audio_buffer *rec_ad(audio_device *d, int sample_amount)
-{
-	audio_buffer *rb = NULL;
-	int ret, err;
-
-	err = make_ab(
-		&rb,
-        get_rate_ad(d),
-        get_chan_ad(d), 
-        get_pfmt_ad(d),
-        am_sample,
-		sample_amount
-	);
-	if (err < 0){
-		fprintf(stderr, "rec_ad: make_ab fail\n");
-		return NULL;
-	}
-
-	printf("snd_pcm_bytes_to_frames(d->handle, rb->size) = %d\n",  snd_pcm_bytes_to_frames(d->handle, rb->size));
-	ret = snd_pcm_readi(
-		d->handle, 
-		rb->buf, 
-		snd_pcm_bytes_to_frames(d->handle, rb->size)
-	);
-	if (ret == -EPIPE){
-		snd_pcm_prepare(d->handle);
-	}
-	else if (ret < 0){
-		fprintf(stderr, "Error while recording\n");	
-		free_ab(rb);
-		return NULL;
-	}
-
-	return rb;
-}
-
-int play_ad(audio_device *d, audio_buffer *pb)
-{
-	int err;
-	snd_pcm_writei(d->handle, pb->buf, get_sample_size_ab(pb));
-}
-
-unsigned int get_rate_ad(audio_device *d)
+int get_rate_ad(audio_device *d)
 {
 	unsigned int rate = 0;
 	snd_pcm_hw_params_get_rate(d->params, &rate, 0);
 	return rate;
 }
 
-unsigned int get_chan_ad(audio_device *d)
+int get_chan_ad(audio_device *d)
 {
 	unsigned int channels = 0;
 	snd_pcm_hw_params_get_channels(d->params, &channels);
@@ -226,10 +186,58 @@ void free_ad(audio_device *d)
 	free(d);
 }
 
+int calc_buf_size(int sr, int ch, snd_pcm_format_t pfmt, audio_measure mu, int mod)
+{
+	switch (mu){
+		case am_sec:
+			return pcm_byte_per_second(sr, ch, pfmt) * mod;
+			break;
+		case am_msec:
+			return (pcm_byte_per_second(sr, ch, pfmt) * mod) / 1000;
+			break;
+		case am_sample:
+			return pcm_byte_per_sample(pfmt) * mod;
+			break;
+		case am_frame:
+			return pcm_byte_per_frame(ch, pfmt) * mod;
+			break;
+		case am_byte:
+			return mod;
+			break;
+		default:
+			fprintf(stderr, "Unknown specifier for audio buffer memory allocation\n");
+			return -1;
+	}
+}
+
+int convert_buf_size(int s, int sr, int ch, snd_pcm_format_t pfmt, audio_measure mu)
+{
+	switch(mu){
+		case am_sec:
+			return s / pcm_byte_per_second(sr, ch, pfmt);
+			break;	
+		case am_msec:
+			return s / pcm_byte_per_second(sr, ch, pfmt) * 1000;
+			break;
+		case am_sample:
+			return s / pcm_byte_per_sample(pfmt);
+			break;
+		case am_frame:
+			return s / pcm_byte_per_frame(ch, pfmt);
+			break;
+		case am_byte:
+			return s;
+			break;
+		default:
+			fprintf(stderr, "Unknown specifier for audio buffer memory allocation\n");
+			return -1;
+	}
+} 
+
 int init_ab(
 	audio_buffer *ab, 
-	unsigned int sr,
-	unsigned int ch,
+	int sr,
+	int ch,
 	snd_pcm_format_t pfmt, 
 	audio_measure mu, 
 	int mod)
@@ -237,16 +245,16 @@ int init_ab(
 	ab->sample_rate = sr;
 	ab->channels = ch;
 	ab->pcm_format = pfmt;
-	ab->size = calc_buf_size_ab(ab, mu, mod);
 	ab->wi = 0;
 	ab->ri = 0;
-
+	ab->size = calc_buf_size(sr, ch, pfmt, mu, mod);
 	if (ab->size <= 0){
+		free_ab(ab);
 		return -1;
 	}
 
 	ab->buf = (unsigned char*)calloc(ab->size, sizeof(char));
-	if (ab->buf == NULL) {
+	if (!ab->buf) {
 		fprintf(stderr, "Error while allocating memory for audio buffer\n");
 		return -1;
 	}
@@ -256,8 +264,8 @@ int init_ab(
 
 int make_ab(
 	audio_buffer **ab, 
-	unsigned int sr,
-	unsigned int ch,
+	int sr,
+	int ch,
 	snd_pcm_format_t pfmt,
 	audio_measure mu, 
 	int mod)
@@ -280,70 +288,27 @@ int make_ab(
 	return 0;
 }
 
-unsigned int calc_buf_size_ab(audio_buffer *ab, audio_measure mu, int mod)
+int get_size_ab(audio_buffer *ab, audio_measure mu)
 {
-	switch (mu){
-		case am_sec:
-			return pcm_byte_per_second(
-				ab->sample_rate, 
-				ab->channels, 
-				ab->pcm_format) * mod;
-			break;
-		case am_usec:
-			return (pcm_byte_per_second(
-				ab->sample_rate, 
-				ab->channels, 
-				ab->pcm_format) * mod) / 1000;
-			break;
-		case am_sample:
-			return sizeof_pcm_format(ab->pcm_format) * mod;
-			break;
-		case am_frame:
-			return pcm_byte_per_frame(ab->channels, ab->pcm_format) * mod;
-			break;
-		case am_byte:
-			return mod;
-			break;
-		default:
-			fprintf(stderr, "Unknown specifier for audio buffer memory allocation\n");
-			return -1;
-	}
+	return convert_buf_size(ab->size, ab->sample_rate, ab->channels, ab->pcm_format, mu);
 }
 
-unsigned int get_sample_size_ab(audio_buffer *ab)
+int get_size_ab_cur(audio_buffer *ab, audio_measure mu)
 {
-	return ab->size / sizeof_pcm_format(ab->pcm_format);
+	return convert_buf_size(ab->wi, ab->sample_rate, ab->channels, ab->pcm_format, mu);
 }
-
-unsigned int get_cur_sample_size_ab(audio_buffer *ab)
-{
-	return ab->wi / sizeof_pcm_format(ab->pcm_format);
-}
-
-unsigned int get_frame_size_ab(audio_buffer *ab)
-{
-	return ab->size / pcm_byte_per_frame(ab->channels, ab->pcm_format);
-}
-
-unsigned int get_cur_frame_size_ab(audio_buffer *ab)
-{
-	return ab->wi / pcm_byte_per_frame(ab->channels, ab->pcm_format);
-}
-
 
 int push_ab(audio_buffer *to, audio_buffer *from)
 {
-	if (from->size >= to->size) {
+	if (from->size > to->size) {
 		fprintf(stderr, "Size of source is more than destinantion's\n");
 		return -1;
 	}
 
-	from->ri = 0;
 	for (from->ri = 0; from->ri != from->size; ++to->wi, ++from->ri) {
 		if (to->wi > to->size){
 			to->wi = 0;
 		}
-
 		to->buf[to->wi] = from->buf[from->ri];
 	}
 
@@ -352,6 +317,59 @@ int push_ab(audio_buffer *to, audio_buffer *from)
 
 void free_ab(audio_buffer *ab)
 {
-	ab->buf ? free(ab->buf) : 0;
+	if (ab->buf) free(ab->buf);
     free(ab);
+}
+
+int audio_record(audio_device *d, audio_buffer *ab, int frame_amount)
+{
+	audio_buffer *rb;
+	int ret, err;
+
+	printf("snd_pcm_bytes_to_frames(d->handle, rb->size) = %d\n",  snd_pcm_bytes_to_frames(d->handle, rb->size));
+	if (frame_amount > get_size_ab_cur(ab, am_frame)){
+		fprintf(stderr, "Requested amount of frames to record is more than size of buffer\n");
+		return -1;
+	}
+
+	err = make_ab(
+		&rb, 
+		get_rate_ad(d), 
+		get_chan_ad(d), 
+		get_pfmt_ad(d), 
+		am_frame, 
+		frame_amount);
+	if (err < 0){
+		return -1;
+	}
+
+	ret = snd_pcm_readi(d->handle, rb->buf, get_size_ab(rb, am_frame));
+	if (ret == -EPIPE){
+		snd_pcm_prepare(d->handle);
+	}
+	else if (ret < 0){
+		fprintf(stderr, "Error while recording\n");
+		return -1;
+	}
+
+	push_ab(ab, rb);
+	
+	return 0;
+}
+
+int audio_play(audio_device *d, audio_buffer *ab)
+{
+	int err;
+	snd_pcm_sframes_t res;
+
+	res = snd_pcm_writei(d->handle, ab->buf, get_size_ab(ab, am_frame));
+	if (res < 0) {
+		err = snd_pcm_recover(d->handle, res, 0);
+			if (err < 0) {
+				fprintf(stderr, "Unrecoverable write error: %s\n", snd_strerror(err));
+				return err; // Hardware disconnected, etc.
+            }
+	}
+
+	return 0;
 }
