@@ -351,11 +351,17 @@ int audio_record(audio_device *d, audio_buffer *ab, int frame_amount)
 		return -1;
 	}
 
-	if (!fvad_process(vad, (int16_t*)rb->buf, get_size_ab(rb, am_sample))){
+	printf("get_size_ab(rb, am_sample) %d\n", get_size_ab(rb, am_sample));
+
+	res = fvad_process(vad, (int16_t*)rb->buf, get_size_ab(rb, am_sample));
+	if (res == 0){
 		printf("Silence\n");
 	}
-	else{
+	else if (res == 1){
 		printf("Sound\n");
+	}
+	else{
+		printf("VAD error\n");
 	}
 
 	push_ab(ab, rb);
