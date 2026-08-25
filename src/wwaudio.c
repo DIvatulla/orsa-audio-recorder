@@ -322,14 +322,10 @@ void free_ab(audio_buffer *ab)
     free(ab);
 }
 
-int audio_record(audio_device *d, audio_buffer *ab, int frame_amount)
+int audio_record(audio_device *d, audio_buffer *ab, int frame_amount, Fvad *vad)
 {
-	Fvad *vad = fvad_new();
 	audio_buffer *rb;
 	int ret, err;
-
-	fvad_set_sample_rate(vad, ab->sample_rate);
-	fvad_set_mode(vad, 3);
 
 	err = make_ab(
 		&rb, 

@@ -95,6 +95,10 @@ int main(int argc, char** argv)
 	);
 	if (err < 0) return err;
 
+	Fvad *vad = fvad_new();
+	fvad_set_sample_rate(vad, LOCAL_SAMPLE_RATE);
+	fvad_set_mode(vad, 3);
+
 	while (pcm_audio_buffer->wi <= pcm_audio_buffer->size){
 		audio_record(
 			recdev, 
