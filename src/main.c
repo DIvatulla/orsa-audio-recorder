@@ -95,6 +95,16 @@ int main(int argc, char** argv)
 	);
 	if (err < 0) return err;
 
+	while (pcm_audio_buffer->wi <= pcm_audio_buffer->size){
+		audio_record(
+			recdev, 
+			pcm_audio_buffer, 
+			(get_rate_ad(recdev) / 1000) * 
+				PER_READ_PCM_BUF_DURATION *
+				get_chan_ad(recdev)
+		);
+	}
+
 	wscs = WS_NONE;
 
 
