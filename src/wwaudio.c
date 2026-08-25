@@ -323,13 +323,12 @@ void free_ab(audio_buffer *ab)
 
 int audio_record(audio_device *d, audio_buffer *ab, int frame_amount)
 {
+	Fvad *vad = fvad_new();
 	audio_buffer *rb;
 	int ret, err;
 
-	if (frame_amount > get_size_ab_cur(ab, am_frame)){
-		fprintf(stderr, "Requested amount of frames to record is more than size of buffer\n");
-		return -1;
-	}
+	fvad_set_sample_rate(vad, LOCAL_SAMPLE_RATE);
+	fvad_set_mode(vad, 3);
 
 	err = make_ab(
 		&rb, 
@@ -350,6 +349,13 @@ int audio_record(audio_device *d, audio_buffer *ab, int frame_amount)
 	else if (ret < 0){
 		fprintf(stderr, "Error while recording\n");
 		return -1;
+	}
+
+	if (!fvad_process(vad, (int16_t*)rb->buf, get_size_ab(rb, am_sample))){
+		printf("Silence\n");
+	}
+	else{
+		printf("Sound\n");
 	}
 
 	push_ab(ab, rb);
